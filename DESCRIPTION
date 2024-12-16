@@ -1,6 +1,6 @@
 Package: epishiny
 Title: Tools for interactive visualisation of epidemiological data
-Version: 0.0.0.9000
+Version: 0.0.0.9001
 Authors@R: 
     person(given = "Paul",
            family = "Cambpell",
