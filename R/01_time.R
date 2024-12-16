@@ -368,12 +368,23 @@ time_server <- function(
           plot_bands = list()
         }
 
+        # custom behaviour for clicking legend items
+        click_legend_item <- system.file("assets/js/clickLegendItem.js", package = "epishiny")
+        click_legend_item <- highcharter::JS(paste0(readLines(click_legend_item), collapse = "\n"))
+
         hc <- hc %>%
           highcharter::hc_title(text = NULL) %>%
           highcharter::hc_chart(zoomType = "x", alignTicks = TRUE) %>%
           highcharter::hc_plotOptions(
             column = list(stacking = isolate(input$bar_stacking)),
-            series = list(cursor = "pointer", stickyTracking = TRUE, events = list(click = click_js))
+            series = list(
+              cursor = "pointer",
+              stickyTracking = TRUE,
+              events = list(
+                click = click_js,
+                legendItemClick = click_legend_item
+              )
+            )
           ) %>%
           highcharter::hc_xAxis(
             title = list(text = date_lab),
