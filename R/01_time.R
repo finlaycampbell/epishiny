@@ -13,7 +13,7 @@
 #'  If named, names are used as variable labels.
 #' @param title Header title for the card.
 #' @param icon The icon to display next to the title.
-#' @param tooltip additional title hover text information 
+#' @param tooltip additional title hover text information
 #' @param opts_btn_lab text label for the dropdown menu button.
 #' @param date_lab text label for the date variable input.
 #' @param date_int_lab text label for the date interval input.
@@ -24,7 +24,7 @@
 #' @param no_grouping_lab text label for the no grouping option in the grouping input.
 #' @param bar_stacking_lab text label for bar stacking option.
 #' @param cumul_data_lab text label for cumulative data option.
-#' @param ratio_line_lab text label for the ratio line input. This input will only be visable if 
+#' @param ratio_line_lab text label for the ratio line input. This input will only be visable if
 #'  `show_ratio` is TRUE in [time_server]
 #' @param full_screen Add button to card to with the option to enter full screen mode?
 #'
@@ -102,7 +102,7 @@ time_ui <- function(
             size = "sm",
             status = "outline-dark",
             choices = date_intervals,
-            selected = ifelse("week" %in% date_intervals, "week", date_intervals[1])
+            selected = date_intervals[1]
           ),
           selectInput(
             ns("count_var"),
@@ -116,6 +116,7 @@ time_ui <- function(
             ns("group"),
             label = groups_lab,
             choices = c(purrr::set_names("n", no_grouping_lab), group_vars),
+            selected = if(!is.null(group_vars)) group_vars[1] else NULL,
             multiple = FALSE,
             selectize = FALSE,
             width = 200
@@ -316,7 +317,7 @@ time_server <- function(
             highcharter::hcaes(!!date_sym, !!rlang::sym(n_var)),
             id = "n_bars",
             name = rv$n_lab
-          ) %>% 
+          ) %>%
             highcharter::hc_tooltip(shared = TRUE)
         } else {
           group_lab <- get_label(group, group_vars)
@@ -338,7 +339,7 @@ time_server <- function(
               x = -10,
               y = 40,
               itemStyle = list(textOverflow = "ellipsis", width = 150)
-            ) %>% 
+            ) %>%
             highcharter::hc_tooltip(
               shared = TRUE,
               pointFormat = '<span style="color:{point.color}">\u25CF</span> {series.name}: <b>{point.y} ({point.percentage:.1f}%)</b><br/>'
@@ -373,7 +374,7 @@ time_server <- function(
           highcharter::hc_plotOptions(
             column = list(stacking = isolate(input$bar_stacking)),
             series = list(cursor = "pointer", stickyTracking = TRUE, events = list(click = click_js))
-          ) %>% 
+          ) %>%
           highcharter::hc_xAxis(
             title = list(text = date_lab),
             allowDecimals = FALSE,
@@ -392,7 +393,7 @@ time_server <- function(
               gridLineWidth = 0
             )
           ) %>%
-          highcharter::hc_boost(enabled = TRUE) %>% 
+          highcharter::hc_boost(enabled = TRUE) %>%
           my_hc_export(caption = isolate(filter_info_out()))
 
         if (isolate(input$date_interval == "week")) {
@@ -505,8 +506,8 @@ time_server <- function(
         if (isTruthy(input$show_ratio_line)) {
           df_line <- df_curve()
           r_var <- ifelse(
-            input$cumulative, 
-            rlang::sym("ratio_c"), 
+            input$cumulative,
+            rlang::sym("ratio_c"),
             rlang::sym("ratio")
           )
 
@@ -672,7 +673,7 @@ get_time_df <- function(
   return(df)
 }
 
-#' @noRd 
+#' @noRd
 get_ratio_df <- function(
   df,
   date_var,
@@ -735,7 +736,7 @@ get_ratio_df <- function(
   return(df_ratio)
 }
 
-#' @noRd 
+#' @noRd
 format_period <- function(date_times, unit) {
   dplyr::case_match(
     unit,
@@ -778,7 +779,7 @@ format_week <- function(date, week_start = getOption("epishiny.week.start", 1)) 
 }
 
 #' Calculate plotBand limits from time_filter information
-#' @noRd 
+#' @noRd
 get_plot_band_limits <- function(tf) {
   if (tf$interval == "day") {
     pad <- lubridate::period(12, "hours")
