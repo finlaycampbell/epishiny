@@ -10,6 +10,7 @@ place_ui(
   geo_data,
   count_vars = NULL,
   group_vars = NULL,
+  geo_summarise = function(x) ifelse(is.numeric(x), sum, Mode)(x),
   title = "Place",
   icon = bsicons::bs_icon("geo-fill"),
   tooltip = NULL,
@@ -41,16 +42,29 @@ place_server(
 )
 }
 \arguments{
-\item{id}{Module id. Must be the same in both the UI and server function to link the two.}
+\item{id}{Module id. Must be the same in both the UI and server
+function to link the two.}
 
-\item{geo_data}{A list of named lists containing spatial sf dataframes and other information for different geographical levels.}
+\item{geo_data}{A list of named lists containing spatial sf
+dataframes and other information for different geographical
+levels.}
 
-\item{count_vars}{If data is aggregated, variable name(s) of count variable(s) in data. If more than one is variable provided,
-a select input will appear in the options dropdown. If named, names are used as variable labels.}
+\item{count_vars}{If data is aggregated, variable name(s) of count
+variable(s) in data. If more than one is variable provided, a
+select input will appear in the options dropdown. If named, names
+are used as variable labels.}
 
-\item{group_vars}{Character vector of categorical variable names. If provided, a select input will appear
-in the options dropdown allowing for data groups to be visualised on the map in pie charts per geographical unit.
-If named, names are used as variable labels.}
+\item{group_vars}{Character vector of categorical variable
+names. If provided, a select input will appear in the options
+dropdown allowing for data groups to be visualised on the map in
+pie charts per geographical unit.  If named, names are used as
+variable labels.}
+
+\item{geo_summarise}{A function to summarise count_vars for
+visualisation via choropleth. Defaults to summing for numerical
+values (e.g. summing daily case counts over time) and identifying
+the mode for categorical values (e.g. most frequent case
+classification).}
 
 \item{title}{The title for the card.}
 
@@ -60,11 +74,13 @@ If named, names are used as variable labels.}
 
 \item{geo_lab}{The label for the geographical level selection.}
 
-\item{count_vars_lab}{text label for the aggregate count variables input.}
+\item{count_vars_lab}{text label for the aggregate count variables
+input.}
 
 \item{groups_lab}{The label for the group data by selection.}
 
-\item{no_grouping_lab}{text label for the no grouping option in the grouping input.}
+\item{no_grouping_lab}{text label for the no grouping option in the
+grouping input.}
 
 \item{circle_size_lab}{text label for the circle size slider input.}
 
@@ -72,36 +88,48 @@ If named, names are used as variable labels.}
 
 \item{download_lab}{text label for the download button.}
 
-\item{full_screen}{Add button to card to with the option to enter full screen mode?}
+\item{full_screen}{Add button to card to with the option to enter
+full screen mode?}
 
-\item{df}{Data frame or tibble of patient level or aggregated data. Can be either a shiny reactive or static dataset.}
+\item{df}{Data frame or tibble of patient level or aggregated
+data. Can be either a shiny reactive or static dataset.}
 
 \item{show_parent_borders}{Show borders of parent boundary levels?}
 
-\item{choro_lab}{Label for attack rate choropleth (only applicable if \code{geo_data} contains population data)}
+\item{choro_lab}{Label for attack rate choropleth (only applicable
+if \code{geo_data} contains population data)}
 
-\item{choro_pal}{Colour palette passed to \code{\link[leaflet:colorNumeric]{leaflet::colorBin()}} for attack rate choropleth
-(only applicable if \code{geo_data} contains population data)}
+\item{choro_pal}{Colour palette passed to \code{\link[leaflet:colorNumeric]{leaflet::colorBin()}}
+for attack rate choropleth (only applicable if \code{geo_data}
+contains population data)}
 
-\item{choro_opacity}{Opacity of choropleth colour (only applicable if \code{geo_data} contains population data)}
+\item{choro_opacity}{Opacity of choropleth colour (only applicable
+if \code{geo_data} contains population data)}
 
 \item{export_width}{The width of the exported map image.}
 
 \item{export_height}{The height of the exported map image.}
 
-\item{time_filter}{supply the output of \code{\link[=time_server]{time_server()}} wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} here to filter
-the data by click events on the time module bar chart (clicking a bar will filter the data to the period the bar represents)}
+\item{time_filter}{supply the output of \code{\link[=time_server]{time_server()}} wrapped in
+a \code{\link[shiny:reactive]{shiny::reactive()}} here to filter the data by click events on
+the time module bar chart (clicking a bar will filter the data to
+the period the bar represents)}
 
-\item{filter_info}{If contained within an app using \code{\link[=filter_server]{filter_server()}}, supply the \code{filter_info} object
-returned by that function here wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} to add filter information to chart exports.}
+\item{filter_info}{If contained within an app using
+\code{\link[=filter_server]{filter_server()}}, supply the \code{filter_info} object returned by
+that function here wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} to add filter
+information to chart exports.}
 
-\item{filter_reset}{If contained within an app using \code{\link[=filter_server]{filter_server()}}, supply the \code{filter_reset} object
-returned by that function here wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} to reset any click event filters that have been set from by module.}
+\item{filter_reset}{If contained within an app using
+\code{\link[=filter_server]{filter_server()}}, supply the \code{filter_reset} object returned by
+that function here wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} to reset any
+click event filters that have been set from by module.}
 }
 \value{
 A \link[bslib:card]{bslib::card} UI element with options and download button and a leaflet map.
 
-The server function returns the leaflet map's shape click information as a list.
+The server function returns the leaflet map's shape click
+information as a list.
 }
 \description{
 Visualise geographical distribution across multiple administrative boundaries on an interactive leaflet map.

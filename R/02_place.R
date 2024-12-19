@@ -4,45 +4,57 @@
 #'
 #' @rdname place
 #'
-#' @param id Module id. Must be the same in both the UI and server function to link the two.
-#' @param geo_data A list of named lists containing spatial sf dataframes and other information for different geographical levels.
-#' @param count_vars If data is aggregated, variable name(s) of count variable(s) in data. If more than one is variable provided,
-#'  a select input will appear in the options dropdown. If named, names are used as variable labels.
-#' @param group_vars Character vector of categorical variable names. If provided, a select input will appear
-#'  in the options dropdown allowing for data groups to be visualised on the map in pie charts per geographical unit. 
-#'  If named, names are used as variable labels.
+#' @param id Module id. Must be the same in both the UI and server
+#'   function to link the two.
+#' @param geo_data A list of named lists containing spatial sf
+#'   dataframes and other information for different geographical
+#'   levels.
+#' @param count_vars If data is aggregated, variable name(s) of count
+#'   variable(s) in data. If more than one is variable provided, a
+#'   select input will appear in the options dropdown. If named, names
+#'   are used as variable labels.
+#' @param group_vars Character vector of categorical variable
+#'   names. If provided, a select input will appear in the options
+#'   dropdown allowing for data groups to be visualised on the map in
+#'   pie charts per geographical unit.  If named, names are used as
+#'   variable labels.
 #' @param title The title for the card.
 #' @param icon The icon to be displayed next to the title
 #' @param tooltip additional title hover text information
 #' @param geo_lab The label for the geographical level selection.
-#' @param count_vars_lab text label for the aggregate count variables input.
+#' @param count_vars_lab text label for the aggregate count variables
+#'   input.
 #' @param groups_lab The label for the group data by selection.
-#' @param no_grouping_lab text label for the no grouping option in the grouping input.
+#' @param no_grouping_lab text label for the no grouping option in the
+#'   grouping input.
 #' @param circle_size_lab text label for the circle size slider input.
 #' @param opts_btn_lab text label for the dropdown menu button.
 #' @param download_lab text label for the download button.
-#' @param full_screen Add button to card to with the option to enter full screen mode?
+#' @param full_screen Add button to card to with the option to enter
+#'   full screen mode?
 #'
 #' @return A [bslib::card] UI element with options and download button and a leaflet map.
 #' @export
 #' @example inst/examples/docs/app.R
 place_ui <- function(
-    id,
-    geo_data,
-    count_vars = NULL,
-    group_vars = NULL,
-    title = "Place",
-    icon = bsicons::bs_icon("geo-fill"),
-    tooltip = NULL,
-    geo_lab = "Geo boundaries",
-    count_vars_lab = "Indicator",
-    groups_lab = "Group data by",
-    no_grouping_lab = "No grouping",
-    circle_size_lab = "Circle size multiplyer",
-    opts_btn_lab = "options",
-    download_lab = "download",
-    full_screen = TRUE
-) {
+                     id,
+                     geo_data,
+                     count_vars = NULL,
+                     group_vars = NULL,
+                     title = "Place",
+                     icon = bsicons::bs_icon("geo-fill"),
+                     tooltip = NULL,
+                     geo_lab = "Geo boundaries",
+                     count_vars_lab = "Shading Indicator",
+                     count_vars_circle_lab = "Circle Indicator",
+                     groups_lab = "Group data by",
+                     no_grouping_lab = "No grouping",
+                     circle_size_lab = "Circle size multiplyer",
+                     opts_btn_lab = "options",
+                     download_lab = "download",
+                     full_screen = TRUE
+                     ) {
+
   ns <- shiny::NS(id)
 
   # check deps are installed
@@ -107,6 +119,14 @@ place_ui <- function(
             width = 200
           ),
           selectInput(
+            ns("count_var_circle"),
+            label = count_vars_circle_lab,
+            choices = count_vars,
+            multiple = FALSE,
+            selectize = FALSE,
+            width = 200
+          ),
+          selectInput(
             ns("var"),
             label = groups_lab,
             choices = c(purrr::set_names("n", no_grouping_lab), group_vars),
@@ -125,14 +145,14 @@ place_ui <- function(
           )
         ),
         # only show download button if chrome available
-        if (!is.null(chromote::find_chrome())) { 
+        if (!is.null(chromote::find_chrome())) {
           downloadButton(
             ns("dl"),
             label = download_lab,
             icon = shiny::icon("camera"),
             class = "btn-sm btn-light pe-2 me-2"
           )
-        } 
+        }
       ),
       bslib::card_body(
         padding = 0,
@@ -143,24 +163,40 @@ place_ui <- function(
   )
 }
 
-#' @param df Data frame or tibble of patient level or aggregated data. Can be either a shiny reactive or static dataset.
+#' @param df Data frame or tibble of patient level or aggregated
+#'   data. Can be either a shiny reactive or static dataset.
+#' @param geo_summarise A function to summarise count_vars for
+#'   visualisation via choropleth. Defaults to summing for numerical
+#'   values (e.g. summing daily case counts over time) and identifying
+#'   the mode for categorical values (e.g. most frequent case
+#'   classification).
 #' @param show_parent_borders Show borders of parent boundary levels?
-#' @param choro_lab Label for attack rate choropleth (only applicable if `geo_data` contains population data)
-#' @param choro_pal Colour palette passed to [`leaflet::colorBin()`] for attack rate choropleth 
-#'  (only applicable if `geo_data` contains population data)
-#' @param choro_opacity Opacity of choropleth colour (only applicable if `geo_data` contains population data)
+#' @param choro_lab Label for attack rate choropleth (only applicable
+#'   if `geo_data` contains population data)
+#' @param choro_pal Colour palette passed to [`leaflet::colorBin()`]
+#'   for attack rate choropleth (only applicable if `geo_data`
+#'   contains population data)
+#' @param choro_opacity Opacity of choropleth colour (only applicable
+#'   if `geo_data` contains population data)
 #' @param export_width The width of the exported map image.
 #' @param export_height The height of the exported map image.
-#' @param filter_info If contained within an app using [filter_server()], supply the `filter_info` object
-#'   returned by that function here wrapped in a [shiny::reactive()] to add filter information to chart exports.
-#' @param filter_reset If contained within an app using [filter_server()], supply the `filter_reset` object
-#'   returned by that function here wrapped in a [shiny::reactive()] to reset any click event filters that have been set from by module.
-#' @param time_filter supply the output of [time_server()] wrapped in a [shiny::reactive()] here to filter
-#' the data by click events on the time module bar chart (clicking a bar will filter the data to the period the bar represents)
+#' @param filter_info If contained within an app using
+#'   [filter_server()], supply the `filter_info` object returned by
+#'   that function here wrapped in a [shiny::reactive()] to add filter
+#'   information to chart exports.
+#' @param filter_reset If contained within an app using
+#'   [filter_server()], supply the `filter_reset` object returned by
+#'   that function here wrapped in a [shiny::reactive()] to reset any
+#'   click event filters that have been set from by module.
+#' @param time_filter supply the output of [time_server()] wrapped in
+#'   a [shiny::reactive()] here to filter the data by click events on
+#'   the time module bar chart (clicking a bar will filter the data to
+#'   the period the bar represents)
 #'
 #' @rdname place
 #'
-#' @return The server function returns the leaflet map's shape click information as a list.
+#' @return The server function returns the leaflet map's shape click
+#'   information as a list.
 #'
 #' @export
 place_server <- function(
@@ -169,6 +205,7 @@ place_server <- function(
     geo_data,
     count_vars = NULL,
     group_vars = NULL,
+    geo_summarise = function(x) ifelse(is.numeric(x), sum,  Mode)(x),
     show_parent_borders = FALSE,
     choro_lab = "Rate /100 000",
     choro_pal = "Reds",
@@ -202,6 +239,10 @@ place_server <- function(
         shinyjs::hide("count_var")
       }
 
+      if (length(count_vars) < 2) {
+        shinyjs::hide("count_var_circle")
+      }
+
       # check for chrome browser for map exports
       chrome_browser <- chromote::find_chrome()
       if (is.null(chrome_browser)) {
@@ -228,7 +269,8 @@ place_server <- function(
         df_out <- force_reactive(df)
         tf <- time_filter()
         if (length(tf)) {
-          df_out <- df_out %>% dplyr::filter(dplyr::between(.data[[tf$date_var]], tf$from, tf$to))
+          df_out <- df_out %>%
+            dplyr::filter(dplyr::between(.data[[tf$date_var]], tf$from, tf$to))
         }
         df_out
       })
@@ -268,8 +310,10 @@ place_server <- function(
         var_list <- c("n", group_vars)
         map_var_lab <- get_label(map_var, var_list)
         count_var <- input$count_var
+        count_var_circle <- input$count_var_circle
         n_lab <- get_label(count_var, count_vars)
-        
+        n_lab_circle <- get_label(count_var_circle, count_vars)
+
         # save as reactive values
         rv$geo_join <- geo_join
         rv$join_cols <- join_cols
@@ -283,7 +327,9 @@ place_server <- function(
         rv$map_var_sym <- map_var_sym
         rv$map_var_lab <- map_var_lab
         rv$count_var <- count_var
+        rv$count_var_circle <- count_var_circle
         rv$n_lab <- n_lab
+        rv$n_lab_circle <- n_lab_circle
       })
 
       # filter geo boundaries to only those with incidence + their neighbours
@@ -366,6 +412,7 @@ place_server <- function(
 
       # join ll data to boundaries
       df_geo_counts <- reactive({
+
         # is the data pre-aggregated
         is_agg <- as.logical(length(count_vars))
 
@@ -374,7 +421,10 @@ place_server <- function(
           is_agg = is_agg,
           geo_var = rv$geo_col,
           count_var = rv$count_var,
-          count_lab = rv$n_lab
+          count_lab = rv$n_lab,
+          count_var_circle = rv$count_var_circle,
+          count_lab_circle = rv$n_lab_circle,
+          geo_summarise = geo_summarise
         )
 
         df_out <- rv$sf %>%
@@ -384,38 +434,45 @@ place_server <- function(
           dplyr::mutate(dplyr::across(dplyr::where(is.numeric), as.double))
           # dplyr::mutate(dplyr::across(dplyr::where(is.double), ~ dplyr::if_else(is.na(.x), 0, .x)))
 
-        # add attack rate if there is population data
-        if (!is.null(rv$geo_pop_var)) {
-          df_out <- df_out %>%
-            dplyr::mutate(
-              # attack rate per 100 000
-              attack_rate = dplyr::na_if((.data$total / .data[[rv$geo_pop_var]]) * 1e5, 0)
-            ) 
-        }
+        ## no longer calculating attack rate - using instead
+        ## explicitly specified second variable for circle
+        ## visualisation namely count_var_circle
+
+        # add attack rate if there is population data if
+        ## (!is.null(rv$geo_pop_var) & is.numeric(df_counts$total)) {
+        ## df_out <- df_out %>% dplyr::mutate( # attack rate per 100
+        ##000 attack_rate = dplyr::na_if(( .data$total /
+        ## .data[[rv$geo_pop_var]]) * 1e5, 0) ) }
 
         return(df_out)
-      }) %>% bindEvent(df_mod(), rv$sf, rv$count_var)
+      }) %>% bindEvent(df_mod(), rv$sf, rv$count_var, rv$count_var_circle)
 
       df_map_circles <- reactive({
         # drop geometry and unneeded cols
-        df_geo_counts <- df_geo_counts() %>% 
-          sf::st_drop_geometry() %>% 
-          dplyr::select(-dplyr::any_of(c("attack_rate", rv$geo_pop_var)))
+        df_geo_counts <- df_geo_counts() %>%
+          sf::st_drop_geometry() %>%
+          # not sure which version to keep
+          dplyr::select(-dplyr::any_of(c(rv$geo_pop_var)))
+          ## dplyr::select(-dplyr::any_of(c("circle", rv$geo_pop_var)))
         # is the data pre-aggregated
         is_agg <- as.logical(length(count_vars))
         # is a data grouping variable supplied
         is_grouped <- rv$map_var != "n"
         # get df
+
         df_circles <- get_map_circle_df(
           df = df_mod(),
           is_agg = is_agg,
           is_grouped = is_grouped,
           geo_var = rv$geo_col,
           count_var = rv$count_var,
+          count_var_circle = rv$count_var_circle,
           group_var = rv$map_var,
           df_geo_counts = df_geo_counts,
           geo_join = rv$geo_join,
-          n_lab = rv$n_lab
+          n_lab = rv$n_lab,
+          n_lab_circle = rv$n_lab_circle,
+          geo_summarise = geo_summarise
         )
       }) %>% bindEvent(df_geo_counts(), rv$map_var)
 
@@ -425,9 +482,9 @@ place_server <- function(
         boundaries <- df_geo_counts()
 
         leaflet::leafletProxy("map", session) %>%
-          leaflet::clearGroup("Boundaries") %>% 
+          leaflet::clearGroup("Boundaries") %>%
           leaflet::clearControls()
-        
+
         # change group layers depening on if attack rate is available
         if (is.null(geo_select()$pop_var)) {
           ogs <- c("Circles")
@@ -472,7 +529,7 @@ place_server <- function(
           boundaries,
           n_lab = rv$n_lab,
           pop_col = rv$geo_pop_var,
-          ar_col = "attack_rate"
+          ar_col = "circle"
         )
 
         leaflet::leafletProxy("map", session) %>%
@@ -493,6 +550,7 @@ place_server <- function(
 
       # add/update Choropleth polygons when df_geo_counts() changes
       observe({
+
         req(df_geo_counts())
 
         leaflet::leafletProxy("map", session) %>%
@@ -500,17 +558,31 @@ place_server <- function(
           leaflet::removeControl(layerId = "attack_legend")
 
         # only plot polygons with incidence
-        df_map <- df_geo_counts() %>% dplyr::filter(.data$total > 0)
+        df_map <- df_geo_counts()
+        if(is.numeric(df_map$total)) df_map <- dplyr::filter(df_map, .data$total > 0)
 
         if (isTruthy(nrow(df_map) > 0) & !is.null(rv$geo_pop_var)) {
+
           # lvls <- levels(df_map$ar_bin)
           # pal <- leaflet::colorFactor(cols, levels = lvls, na.color = "transparent", ordered = TRUE)
-          pal <- leaflet::colorBin(
-            palette = choro_pal,
-            domain = df_map$attack_rate,
-            bins = 5,
-            na.color = "transparent"
-          )
+
+          # use continuous or discrete palette depending on variable
+          is_numeric <- is.numeric(df_map$total)
+
+          if (is_numeric) {
+            pal <- leaflet::colorBin(
+              palette = choro_pal,
+              domain = df_map$circle,
+              bins = 5,
+              na.color = "transparent"
+            )
+          } else {
+            pal <- leaflet::colorFactor(
+              palette = choro_pal,
+              domain = df_map$total,
+              na.color = "transparent"
+            )
+          }
 
           leaflet::leafletProxy("map", session) %>%
             leaflet::addPolygons(
@@ -518,9 +590,11 @@ place_server <- function(
               stroke = TRUE,
               color = "grey",
               weight = 1,
-              fillColor = ~ pal(attack_rate),
+              fillColor = ~ pal(circle),
               fillOpacity = choro_opacity,
-              highlightOptions = leaflet::highlightOptions(bringToFront = TRUE, weight = 3),
+              highlightOptions = leaflet::highlightOptions(
+                bringToFront = TRUE, weight = 3
+              ),
               group = "Choropleth",
               options = leaflet::pathOptions(pane = "choropleth")
             ) %>%
@@ -528,7 +602,7 @@ place_server <- function(
               title = choro_lab,
               data = df_map,
               pal = pal,
-              values = ~attack_rate,
+              values = ~ circle,
               opacity = choro_opacity,
               position = "bottomright",
               group = "Choropleth",
@@ -537,7 +611,8 @@ place_server <- function(
         }
       }) %>% bindEvent(df_geo_counts())
 
-      # minichart circles/pies 
+
+      # minichart circles/pies
       minicharts_init <- reactiveVal(TRUE)
       minicharts_on <- reactiveVal(TRUE)
       observe({
@@ -547,19 +622,23 @@ place_server <- function(
 
         req(nrow(df_map) > 0)
 
-        if (isTruthy("Circles" %in% isolate(input$map_groups)) | minicharts_init()) {
+        if (
+        (isTruthy("Circles" %in% isolate(input$map_groups)) | minicharts_init()) &
+          is.numeric(df_map$total)
+        ) {
           chart_data <- df_map %>%
             dplyr::select(-dplyr::any_of(c(
               rv$join_cols,
               rv$geo_pop_var,
-              "attack_rate",
+              "circle",
               "name",
               "lon",
               "lat",
               "total"
             )))
 
-          pie_width <- (input$circle_size_mult * 10) * (sqrt(df_map$total) / sqrt(max(df_map$total)))
+          pie_width <- (input$circle_size_mult * 10) *
+            (sqrt(df_map$total) / sqrt(max(df_map$total)))
 
           leaflet::leafletProxy("map", session) %>%
             leaflet.minicharts::addMinicharts(
@@ -593,13 +672,14 @@ place_server <- function(
             dplyr::select(-dplyr::any_of(c(
               rv$join_cols,
               rv$geo_pop_var,
-              "attack_rate",
+              "circle",
               "name",
               "lon",
               "lat",
               "total"
             )))
-          pie_width <- (input$circle_size_mult * 10) * (sqrt(df_map$total) / sqrt(max(df_map$total)))
+          pie_width <- (input$circle_size_mult * 10) *
+            (sqrt(df_map$total) / sqrt(max(df_map$total)))
           leaflet::leafletProxy("map", session) %>%
             leaflet.minicharts::addMinicharts(
               lng = df_map$lon,
@@ -620,12 +700,20 @@ place_server <- function(
 
       # Missing data information ==================================================
       missing_text <- reactive({
-        df_missing <- df_mod() %>%
-          dplyr::anti_join(geo_select()$sf, by = purrr::set_names(rv$join_cols, rv$geo_col))
 
-        if (length(count_vars)) {
-          n_missing <- df_missing %>% dplyr::pull(.data[[rv$count_var]]) %>% sum(na.rm = TRUE)
-          n_total <- df_mod() %>% dplyr::pull(.data[[rv$count_var]]) %>% sum(na.rm = TRUE)
+        df_missing <- df_mod() %>%
+          dplyr::anti_join(
+            geo_select()$sf,
+            by = purrr::set_names(rv$join_cols, rv$geo_col)
+          )
+
+        if (length(count_vars) & is.numeric(df_missing[[rv$count_var]])) {
+          n_missing <- df_missing %>%
+            dplyr::pull(.data[[rv$count_var]]) %>%
+            sum(na.rm = TRUE)
+          n_total <- df_mod() %>%
+            dplyr::pull(.data[[rv$count_var]]) %>%
+            sum(na.rm = TRUE)
           pcnt_missing <- n_missing / n_total
         } else {
           n_missing <- nrow(df_missing)
@@ -664,7 +752,8 @@ place_server <- function(
               shiny::modalDialog(
                 title = "No Chrome or Chromium browser found",
                 paste(
-                  "The place module map export requires a Chrome or Chromium browser (Google Chrome, Chromium, Microsoft Edge and others)",
+                  "The place module map export requires a Chrome or Chromium browser ",
+                  "(Google Chrome, Chromium, Microsoft Edge and others)",
                   "to be installed on the system running the shiny app in order to work."
                 )
               )
@@ -684,9 +773,9 @@ place_server <- function(
           missing_data_text <- missing_text()
           if (!is.null(missing_data_text)) {
             missing_data_text <- glue::glue("<b>Missing data</b></br>{missing_data_text}")
-          } 
+          }
 
-          # get the centroid coordinates of current onscreen map view 
+          # get the centroid coordinates of current onscreen map view
           # to set the view in export map
           bbox <- sf::st_bbox(c(
             xmin = input$map_bounds$east,
@@ -697,7 +786,7 @@ place_server <- function(
           sv <- dplyr::as_tibble(sf::st_coordinates(suppressWarnings(sf::st_centroid(sf::st_as_sfc(bbox)))))
 
           leaf_out <- leaflet::leaflet() %>%
-            leaflet::setView(sv$X, sv$Y, zoom = input$map_zoom) %>% 
+            leaflet::setView(sv$X, sv$Y, zoom = input$map_zoom) %>%
             # leaflet::fitBounds(
             #   input$map_bounds$east,
             #   input$map_bounds$south,
@@ -742,7 +831,7 @@ place_server <- function(
               dplyr::select(-dplyr::any_of(c(
                 rv$join_cols,
                 rv$geo_pop_var,
-                "attack_rate",
+                "circle",
                 "name",
                 "lon",
                 "lat",
@@ -766,13 +855,13 @@ place_server <- function(
                 width = pie_width
               )
           }
-          
+
           if (isTruthy("Choropleth" %in% input$map_groups)) { # !is.null(rv$geo_pop_var)
             df_map <- df_geo_counts()
 
             pal <- leaflet::colorBin(
               palette = choro_pal,
-              domain = df_map$attack_rate,
+              domain = df_map$circle,
               bins = 5,
               na.color = "transparent"
             )
@@ -782,7 +871,7 @@ place_server <- function(
                 stroke = TRUE,
                 color = "grey",
                 weight = 1,
-                fillColor = ~ pal(attack_rate),
+                fillColor = ~ pal(circle),
                 fillOpacity = choro_opacity,
                 highlightOptions = leaflet::highlightOptions(bringToFront = TRUE, weight = 3),
                 group = "Choropleth",
@@ -792,7 +881,7 @@ place_server <- function(
                 title = choro_lab,
                 data = df_map,
                 pal = pal,
-                values = ~attack_rate,
+                values = ~ circle,
                 opacity = choro_opacity,
                 position = "bottomright",
                 group = "Choropleth",
@@ -876,8 +965,8 @@ place_server <- function(
 }
 
 #' Build a geo layer to be used in the 'place' module
-#' 
-#' @param layer_name the name of the geo layer, for example 'State', 'Department', 'Admin2' etc. 
+#'
+#' @param layer_name the name of the geo layer, for example 'State', 'Department', 'Admin2' etc.
 #'  If providing multiple layers, layer names must be unique.
 #' @param sf geographical data of class 'sf' (simple features).
 #' @param name_var character string of the variable name in `sf` containing the names of each geographical feature.
@@ -886,10 +975,10 @@ place_server <- function(
 #'  join variable of the dataset. i.e. `c("pcode" = "place_code")` LHS = geo, RHS = data.
 #' @param pop_var character string of the variable name in `sf` containing population data for each feature.
 #'  If provided, attack rates will be shown on the map as a choropleth.
-#' 
+#'
 #' @return named list of class "epishiny_geo_layer"
-#' 
-#' @examples 
+#'
+#' @examples
 #' geo_layer(
 #'   layer_name = "Governorate",
 #'   sf = sf_yem$adm1,
@@ -897,7 +986,7 @@ place_server <- function(
 #'   pop_var = "adm1_pop",
 #'   join_by = c("pcode" = "adm1_pcode")
 #' )
-#' @export 
+#' @export
 geo_layer <- function(layer_name, sf, name_var, join_by, pop_var = NULL) {
   # check arguments
   rlang::check_required(layer_name)
@@ -932,14 +1021,14 @@ geo_layer <- function(layer_name, sf, name_var, join_by, pop_var = NULL) {
   )
 }
 
-#' @noRd 
+#' @noRd
 check_single_string <- function(x, arg = rlang::caller_arg(x), call = rlang::caller_env()) {
   if (!rlang::is_string(x) | length(x) != 1) {
     cli::cli_abort("{.arg {arg}} must be a character string of length 1.", call = call)
   }
 }
 
-#' @noRd 
+#' @noRd
 add_coords <- function(sf) {
   if (all(c("lon", "lat") %in% colnames(sf))) {
     sf
@@ -950,57 +1039,72 @@ add_coords <- function(sf) {
 }
 
 #' @noRd
-get_geo_counts <- function(
-    df,
-    is_agg,
-    geo_var,
-    count_var,
-    count_lab
-  ) {
-    if (is_agg) {
-      df <- dplyr::count(df, .data[[geo_var]], wt = .data[[count_var]], name = count_lab)
-    } else {
-      df <- dplyr::count(df, .data[[geo_var]], name = count_lab)
-    }
-    dplyr::mutate(df, total = .data[[count_lab]])
+get_geo_counts <- function(df,
+                           is_agg,
+                           geo_var,
+                           count_var,
+                           count_lab,
+                           count_var_circle,
+                           count_lab_circle,
+                           geo_summarise) {
+  if (is_agg) {
+    df |>
+      group_by(.data[[geo_var]]) |>
+      summarise(
+        !!count_lab := geo_summarise(.data[[count_var]]),
+        !!count_lab_circle := geo_summarise(.data[[count_var_circle]])
+      ) |>
+      mutate(total = .data[[count_lab]], circle = .data[[count_lab_circle]])
+  } else {
+    dplyr::count(df, .data[[geo_var]], name = count_lab) |>
+      mutate(df, total = .data[[count_lab]], circle = .data[[count_lab]])
   }
+}
 
-#' @noRd 
-get_map_circle_df <- function(
-  df,
-  is_agg,
-  is_grouped,
-  geo_var,
-  count_var,
-  group_var,
-  df_geo_counts,
-  geo_join,
-  n_lab
-) {
+#' @noRd
+get_map_circle_df <- function(df,
+                              is_agg,
+                              is_grouped,
+                              geo_var,
+                              count_var,
+                              count_var_circle,
+                              group_var,
+                              df_geo_counts,
+                              geo_join,
+                              n_lab,
+                              n_lab_circle,
+                              geo_summarise) {
+
   if (!is_grouped) {
     df <- df_geo_counts
   } else {
     if (is_agg) {
-      df <- dplyr::count(df, .data[[geo_var]], .data[[group_var]], wt = .data[[count_var]])
+      df <- df |>
+        # summarise using geo_summarise function across groupings
+        group_by(.data[[geo_var]], .data[[group_var]]) |>
+        summarise(n = geo_summarise(.data[[count_var_circle]]))
+      ## df <- dplyr::count(df, .data[[geo_var]], .data[[group_var]], wt = .data[[count_var]])
     } else {
       df <- dplyr::count(df, .data[[geo_var]], .data[[group_var]])
     }
     # dplyr::mutate(total = rowSums(dplyr::pick(dplyr::where(is.numeric))))
-    df <- df_geo_counts %>% 
-      dplyr::select(-dplyr::any_of(n_lab)) %>% 
+    df <- df_geo_counts %>%
+      dplyr::select(-dplyr::any_of(c(n_lab_circle))) %>%
       dplyr::left_join(
-        df %>% tidyr::pivot_wider(names_from = group_var, values_from = "n"), 
+        df %>% tidyr::pivot_wider(names_from = group_var, values_from = "n"),
         by = geo_join
-      ) %>% 
-      dplyr::mutate(dplyr::across(dplyr::where(is.numeric), as.double)) %>% 
+      ) %>%
+      dplyr::mutate(dplyr::across(dplyr::where(is.numeric), as.double)) %>%
       dplyr::mutate(dplyr::across(dplyr::where(is.double), ~ dplyr::if_else(is.na(.x), 0, .x)))
   }
-  df %>% dplyr::filter(.data$total > 0) 
+  if (is.numeric(df$total))
+    df %>% dplyr::filter(.data$total > 0)
+  else df
 }
 
 #' Copy of mapview::mapshot2 with minor changes to avoid the full dependency on mapview
 #' Full credit to the mapview authors
-#' @noRd 
+#' @noRd
 mapshot2 <- function(x,
                      url = NULL,
                      file = NULL,
@@ -1081,7 +1185,7 @@ mapshot2 <- function(x,
   }
 }
 
-#' @noRd 
+#' @noRd
 removeMapJunk <- function(map, junk = NULL) {
   if (is.null(junk)) {
     return(map)
@@ -1156,4 +1260,10 @@ getCallEntryFromMap <- function(map, call) {
     fixed <- TRUE
   }
   grep(call, getCallMethods(map), fixed = fixed, useBytes = TRUE)
+}
+
+#' @noRd
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
 }

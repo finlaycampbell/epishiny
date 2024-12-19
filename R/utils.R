@@ -107,7 +107,7 @@ update_group_filter <- function(session, var, df) {
     # shinyWidgets::updatePickerInput(session, var, choices = choices)
     shiny::updateSelectizeInput(session, var, choices = choices)
 }
- 
+
 #' @noRd
 make_select_filter <- function(var, lab, ns, df, ...) {
   vec <- df[[var]]
@@ -293,35 +293,57 @@ leaf_basemap <- function(
 }
 
 #' @noRd
-make_leaf_tooltip <- function(
-    df,
-    name_col = "name",
-    n_col = "total",
-    n_lab = "N patients",
-    pop_col = NULL,
-    pop_lab = "Population",
-    ar_col = NULL,
-    ar_lab = "Attack rate"
-) {
-  counts <- ifelse(is.na(df[[n_col]]), "No data", scales::number(df[[n_col]], accuracy = 1))
-  if (all(!is.null(pop_col), !is.null(ar_col))) {
-    pop <- ifelse(is.na(df[[pop_col]]), "No data", scales::number(df[[pop_col]], accuracy = 1))
-    ar <- ifelse(is.na(df[[ar_col]]), "No data", scales::number(df[[ar_col]], accuracy = .1))
-    glue::glue(
-      "<b>{df[[name_col]]}</b><br>
+make_leaf_tooltip <- function(df,
+                              name_col = "name",
+                              n_col = "total",
+                              n_lab = "N patients",
+                              pop_col = NULL,
+                              pop_lab = "Population",
+                              ar_col = NULL,
+                              ar_lab = "Attack rate") {
+
+  # when variable is numeric
+  if (is.numeric(df[[n_col]])) {
+    counts <- ifelse(
+      is.na(df[[n_col]]),
+      "No data",
+      scales::number(df[[n_col]], accuracy = 1)
+    )
+    if (all(!is.null(pop_col), !is.null(ar_col))) {
+      pop <- ifelse(
+        is.na(df[[pop_col]]),
+        "No data",
+        scales::number(df[[pop_col]], accuracy = 1)
+      )
+      ar <- ifelse(
+        is.na(df[[ar_col]]),
+        "No data",
+        scales::number(df[[ar_col]], accuracy = .1)
+      )
+      glue::glue(
+        "<b>{df[[name_col]]}</b><br>
        {n_lab}: <b>{counts}</b><br>
        {pop_lab}: <b>{pop}</b><br>
        {ar_lab}: <b>{ar}</b> / 100 000<br>"
-    ) %>% purrr::map(shiny::HTML)
+      ) %>% purrr::map(shiny::HTML)
+    } else {
+      glue::glue(
+        "<b>{df[[name_col]]}</b><br>
+       {n_lab}: <b>{counts}</b><br>"
+      ) %>% purrr::map(shiny::HTML)
+    }
+    # when variable is non-numeric
   } else {
+    txt <- if_else(is.na(df[[n_col]]), "No data", df[[n_col]])
     glue::glue(
       "<b>{df[[name_col]]}</b><br>
-       {n_lab}: <b>{counts}</b><br>"
+       {n_lab}: <b>{txt}</b><br>"
     ) %>% purrr::map(shiny::HTML)
   }
+
 }
 
-#' @noRd 
+#' @noRd
 get_label <- function(selected, choices, .default = getOption("epishiny.count.label", "N")) {
   if (length(choices)) {
     lab <- choices[choices == selected]
@@ -331,7 +353,7 @@ get_label <- function(selected, choices, .default = getOption("epishiny.count.la
   }
 }
 
-#' @noRd 
+#' @noRd
 format_filter_info <- function(fi = NULL, tf = NULL, pf = NULL) {
   if (length(tf)) {
     if (length(fi)) {
