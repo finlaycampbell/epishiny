@@ -7,15 +7,17 @@
 \usage{
 place_ui(
   id,
+  df,
   geo_data,
-  count_vars = NULL,
+  choro_vars = NULL,
+  circle_vars = NULL,
   group_vars = NULL,
-  geo_summarise = function(x) ifelse(is.numeric(x), sum, Mode)(x),
   title = "Place",
   icon = bsicons::bs_icon("geo-fill"),
   tooltip = NULL,
   geo_lab = "Geo boundaries",
-  count_vars_lab = "Indicator",
+  choro_vars_lab = "Shading Indicator",
+  circle_vars_lab = "Circle Indicator",
   groups_lab = "Group data by",
   no_grouping_lab = "No grouping",
   circle_size_lab = "Circle size multiplyer",
@@ -28,8 +30,10 @@ place_server(
   id,
   df,
   geo_data,
-  count_vars = NULL,
+  choro_vars = NULL,
+  circle_vars = NULL,
   group_vars = NULL,
+  geo_summarise = function(x) ifelse(is.numeric(x), sum, Mode)(x),
   show_parent_borders = FALSE,
   choro_lab = "Rate /100 000",
   choro_pal = "Reds",
@@ -45,26 +49,28 @@ place_server(
 \item{id}{Module id. Must be the same in both the UI and server
 function to link the two.}
 
+\item{df}{Data frame or tibble of patient level or aggregated
+data. Can be either a shiny reactive or static dataset.}
+
 \item{geo_data}{A list of named lists containing spatial sf
 dataframes and other information for different geographical
 levels.}
 
-\item{count_vars}{If data is aggregated, variable name(s) of count
-variable(s) in data. If more than one is variable provided, a
-select input will appear in the options dropdown. If named, names
-are used as variable labels.}
+\item{choro_vars}{If data is aggregated, variable name(s) of count
+variable(s) in data to be mapped to choropleth aesthetic. If more
+than one is variable provided, a select input will appear in the
+options dropdown. If named, names are used as variable labels.}
+
+\item{circle_vars}{If data is aggregated, variable name(s) of count
+variable(s) in data to be mapped to circle aesthetic. If more
+than one is variable provided, a select input will appear in the
+options dropdown. If named, names are used as variable labels.}
 
 \item{group_vars}{Character vector of categorical variable
 names. If provided, a select input will appear in the options
 dropdown allowing for data groups to be visualised on the map in
 pie charts per geographical unit.  If named, names are used as
 variable labels.}
-
-\item{geo_summarise}{A function to summarise count_vars for
-visualisation via choropleth. Defaults to summing for numerical
-values (e.g. summing daily case counts over time) and identifying
-the mode for categorical values (e.g. most frequent case
-classification).}
 
 \item{title}{The title for the card.}
 
@@ -74,7 +80,7 @@ classification).}
 
 \item{geo_lab}{The label for the geographical level selection.}
 
-\item{count_vars_lab}{text label for the aggregate count variables
+\item{choro_vars_lab}{text label for the aggregate count variables
 input.}
 
 \item{groups_lab}{The label for the group data by selection.}
@@ -91,8 +97,11 @@ grouping input.}
 \item{full_screen}{Add button to card to with the option to enter
 full screen mode?}
 
-\item{df}{Data frame or tibble of patient level or aggregated
-data. Can be either a shiny reactive or static dataset.}
+\item{geo_summarise}{A function to summarise data for visualisation
+via choropleth or circle aesthetic. Defaults to summing for numerical values
+(e.g. summing daily case counts over time) and identifying the
+mode for categorical values (e.g. most frequent case
+classification).}
 
 \item{show_parent_borders}{Show borders of parent boundary levels?}
 

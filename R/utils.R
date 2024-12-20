@@ -294,57 +294,44 @@ leaf_basemap <- function(
 
 #' @noRd
 make_leaf_tooltip <- function(df,
-                              name_col = "name",
-                              n_col = "total",
-                              n_lab = "N patients",
-                              pop_col = NULL,
-                              pop_lab = "Population",
-                              ar_col = NULL,
-                              ar_lab = "Attack rate") {
+                              choro_lab,
+                              circle_lab,
+                              name_col = "name") {
 
-  # when variable is numeric
-  if (is.numeric(df[[n_col]])) {
-    counts <- ifelse(
-      is.na(df[[n_col]]),
+  choro_value <- df[["choro_value"]]
+  if (is.numeric(choro_value))
+    choro_value <- ifelse(
+      is.na(choro_value),
       "No data",
-      scales::number(df[[n_col]], accuracy = 1)
+      scales::number(choro_value, accuracy = 1)
     )
-    if (all(!is.null(pop_col), !is.null(ar_col))) {
-      pop <- ifelse(
-        is.na(df[[pop_col]]),
-        "No data",
-        scales::number(df[[pop_col]], accuracy = 1)
-      )
-      ar <- ifelse(
-        is.na(df[[ar_col]]),
-        "No data",
-        scales::number(df[[ar_col]], accuracy = .1)
-      )
-      glue::glue(
-        "<b>{df[[name_col]]}</b><br>
-       {n_lab}: <b>{counts}</b><br>
-       {pop_lab}: <b>{pop}</b><br>
-       {ar_lab}: <b>{ar}</b> / 100 000<br>"
-      ) %>% purrr::map(shiny::HTML)
-    } else {
-      glue::glue(
-        "<b>{df[[name_col]]}</b><br>
-       {n_lab}: <b>{counts}</b><br>"
-      ) %>% purrr::map(shiny::HTML)
-    }
-    # when variable is non-numeric
-  } else {
-    txt <- if_else(is.na(df[[n_col]]), "No data", df[[n_col]])
+
+  circle_value <- df[["circle_value"]]
+  if (is.numeric(circle_value))
+    circle_value <- ifelse(
+      is.na(circle_value),
+      "No data",
+      scales::number(circle_value, accuracy = 1)
+    )
+
+  if (choro_lab == circle_lab) {
     glue::glue(
       "<b>{df[[name_col]]}</b><br>
-       {n_lab}: <b>{txt}</b><br>"
+       {circle_lab}: <b>{circle_value}</b><br>"
+    ) %>% purrr::map(shiny::HTML)
+  } else {
+    glue::glue(
+      "<b>{df[[name_col]]}</b><br>
+       {choro_lab}: <b>{choro_value}</b><br>
+       {circle_lab}: <b>{circle_value}</b><br>"
     ) %>% purrr::map(shiny::HTML)
   }
 
 }
 
 #' @noRd
-get_label <- function(selected, choices, .default = getOption("epishiny.count.label", "N")) {
+get_label <- function(selected, choices,
+                      .default = getOption("epishiny.count.label", "N")) {
   if (length(choices)) {
     lab <- choices[choices == selected]
     ifelse(rlang::is_named(lab), names(lab), lab)
