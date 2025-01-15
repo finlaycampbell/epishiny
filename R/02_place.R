@@ -6,19 +6,13 @@
 #'
 #' @param id Module id. Must be the same in both the UI and server
 #'   function to link the two.
-#' @param df Data frame or tibble of patient level or aggregated
-#'   data. Can be either a shiny reactive or static dataset.
 #' @param geo_data A list of named lists containing spatial sf
 #'   dataframes and other information for different geographical
 #'   levels.
-#' @param choro_vars If data is aggregated, variable name(s) of count
-#'   variable(s) in data to be mapped to choropleth aesthetic. If more
-#'   than one is variable provided, a select input will appear in the
-#'   options dropdown. If named, names are used as variable labels.
-#' @param circle_vars If data is aggregated, variable name(s) of count
-#'   variable(s) in data to be mapped to circle aesthetic. If more
-#'   than one is variable provided, a select input will appear in the
-#'   options dropdown. If named, names are used as variable labels.
+#' @param count_vars If data is aggregated, variable name(s) of count
+#'   variable(s) in data. If more than one is variable provided, a
+#'   select input will appear in the options dropdown. If named, names
+#'   are used as variable labels.
 #' @param group_vars Character vector of categorical variable
 #'   names. If provided, a select input will appear in the options
 #'   dropdown allowing for data groups to be visualised on the map in
@@ -44,10 +38,8 @@
 #' @example inst/examples/docs/app.R
 place_ui <- function(
                      id,
-                     df,
                      geo_data,
-                     choro_vars = NULL,
-                     circle_vars = NULL,
+                     count_vars = NULL,
                      group_vars = NULL,
                      title = "Place",
                      icon = bsicons::bs_icon("geo-fill"),
@@ -95,17 +87,6 @@ place_ui <- function(
     tt <- NULL
   }
 
-  # keep only numeric variables for circle
-  circle_vars_numeric <- map_lgl(df[circle_vars], is.numeric)
-  if (any(!circle_vars_numeric)) {
-    cli::cli_warn(c(
-      "The following variable{?s} in {.arg circle_vars} {?is/are} not numeric and {?is/were} dropped: {.val {circle_vars[!circle_vars_numeric]}}.",
-      "x" = "All variables in {.arg circle_vars} are expected to be numeric.",
-      "i" = "Please check: {.val {circle_vars[!circle_vars_numeric]}} and ensure {?it/they} {?is/are} numeric."
-    ))
-  }
-  circle_vars <- c("None" = "none", circle_vars[circle_vars_numeric])
-
   tagList(
     use_epishiny(),
     bslib::card(
@@ -132,7 +113,7 @@ place_ui <- function(
           selectInput(
             ns("choro_var"),
             label = choro_vars_lab,
-            choices = choro_vars,
+            choices = count_vars,
             multiple = FALSE,
             selectize = FALSE,
             width = 200
@@ -140,8 +121,7 @@ place_ui <- function(
           selectInput(
             ns("circle_var"),
             label = circle_vars_lab,
-            choices = circle_vars,
-            selected = circle_vars[2],
+            choices = c("None" = "none", count_vars),
             multiple = FALSE,
             selectize = FALSE,
             width = 200
@@ -172,12 +152,7 @@ place_ui <- function(
             icon = shiny::icon("camera"),
             class = "btn-sm btn-light pe-2 me-2"
           )
-        },
-        ## radioGroupButtons(
-        ##   ns("choro_var"),
-        ##   choices = choro_vars,
-        ##   size = "sm"
-        ## )
+        }
       ),
       bslib::card_body(
         padding = 0,
@@ -196,8 +171,6 @@ place_ui <- function(
 #'   mode for categorical values (e.g. most frequent case
 #'   classification).
 #' @param show_parent_borders Show borders of parent boundary levels?
-#' @param choro_lab Label for attack rate choropleth (only applicable
-#'   if `geo_data` contains population data)
 #' @param choro_pal Colour palette passed to [`leaflet::colorBin()`]
 #'   for attack rate choropleth (only applicable if `geo_data`
 #'   contains population data)
@@ -228,12 +201,10 @@ place_server <- function(
     id,
     df,
     geo_data,
-    choro_vars = NULL,
-    circle_vars = NULL,
+    count_vars = NULL,
     group_vars = NULL,
     geo_summarise = function(x) ifelse(is.numeric(x), sum,  Mode)(x),
     show_parent_borders = FALSE,
-    choro_lab = "Rate /100 000",
     choro_pal = "Reds",
     choro_opacity = .7,
     export_width = 1200,
@@ -261,14 +232,50 @@ place_server <- function(
         shinyjs::hide("var")
       }
 
+      # keep only numeric count variables for circle aesthetic
+      if (!is.null(count_vars)) {
+        circle_vars <- count_vars
+        circle_vars_numeric <- purrr:::map_lgl(df[circle_vars], is.numeric)
+        if (any(!circle_vars_numeric)) {
+          cli::cli_warn(c(
+            paste0(
+              "The following variable{?s} in {.arg circle_vars} ",
+              "{?is/are} not numeric and {?is/were} dropped: ",
+              "{.val {circle_vars[!circle_vars_numeric]}}."
+            ),
+            "x" = paste0(
+              "All variables in {.arg circle_vars} are expected",
+              " to be numeric."
+            ),
+            "i" = paste0(
+              "Please check: {.val ",
+              "{circle_vars[!circle_vars_numeric]}} and ensure {?it/they} ",
+              "{?is/are} numeric."
+            )
+          ))
+        }
+        circle_vars <- c("None" = "none", circle_vars[circle_vars_numeric])
+        updateSelectInput(session, "circle_var", choices = circle_vars)
+      } else {
+        circle_vars <- c("None" = "none")
+      }
+
+      # all count vars mapped to choropleth
+      choro_vars <- count_vars
       if (length(choro_vars) < 2) {
         shinyjs::hide("choro_var")
       }
 
-      circle_vars <- c(
-        "None" = "none",
-        circle_vars[map_lgl(df[circle_vars], is.numeric)]
-      )
+      # only numeric count vars mapped to circle
+      circle_vars <- count_vars
+      if(!is.null(circle_vars)) {
+        circle_vars <- c(
+          "None" = "none",
+          circle_vars[purrr:::map_lgl(df[circle_vars], is.numeric)]
+        )
+      } else {
+        circle_vars <- c("None" = "none")
+      }
 
       # circle_vars have to be numeric
       if (length(circle_vars) < 3) {
@@ -656,7 +663,7 @@ place_server <- function(
           chart_data <- dplyr::select(df_map, circle_value, grouping, rv$join_cols) |>
             pivot_wider(values_from = "circle_value", names_from = "grouping") |>
             arrange(.data[[rv$join_cols]]) |>
-            select(-rv$join_cols)
+            dplyr::select(-rv$join_cols)
 
           df_map <- group_by(df_map, across(-c(grouping, circle_value))) |>
             summarise(circle_value = sum(circle_value), .groups = "drop")
@@ -696,7 +703,7 @@ place_server <- function(
           chart_data <- dplyr::select(df_map, circle_value, grouping, rv$join_cols) |>
             pivot_wider(values_from = "circle_value", names_from = "grouping") |>
             arrange(.data[[rv$join_cols]]) |>
-            select(-rv$join_cols)
+            dplyr::select(-rv$join_cols)
 
           df_map <- group_by(df_map, across(-c(grouping, circle_value))) |>
             summarise(circle_value = sum(circle_value), .groups = "drop")
@@ -730,7 +737,7 @@ place_server <- function(
             by = purrr::set_names(rv$join_cols, rv$geo_col)
           )
 
-        if (length(choro_vars) & is.numeric(df_missing[[rv$choro_var]])) {
+        if (length(choro_vars) && is.numeric(df_missing[[rv$choro_var]])) {
           n_missing <- df_missing %>%
             dplyr::pull(.data[[rv$choro_var]]) %>%
             sum(na.rm = TRUE)
@@ -746,6 +753,7 @@ place_server <- function(
         if (n_missing == 0) {
           return(NULL)
         } else {
+          browser()
           lab_missing <- glue::glue("{scales::number(n_missing)} ({scales::percent(pcnt_missing, accuracy = 1)})")
           glue::glue("Missing/Unknown {rv$geo_level_name} data for {lab_missing} {tolower(rv$choro_lab)}")
         }
@@ -856,7 +864,7 @@ place_server <- function(
             chart_data <- dplyr::select(df_circles, circle_value, grouping, rv$join_cols) |>
               pivot_wider(values_from = "circle_value", names_from = "grouping") |>
               arrange(.data[[rv$join_cols]]) |>
-              select(-rv$join_cols)
+              dplyr::select(-rv$join_cols)
 
             df_circles <- group_by(df_circles, across(-c(grouping, circle_value))) |>
               summarise(circle_value = sum(circle_value), .groups = "drop")
@@ -1094,7 +1102,7 @@ get_geo_counts <- function(df,
       )
   } else {
     dplyr::count(df, .data[[geo_var]], name = "choro_value") |>
-      mutate(circle_value = choro_value)
+      dplyr::mutate(circle_value = choro_value)
   }
 }
 
@@ -1113,8 +1121,8 @@ get_map_circle_df <- function(df,
                               geo_summarise) {
 
   if (!is_grouped) {
-    df <- mutate(df_geo_counts, grouping = "nogroup") |>
-      select(-choro_value)
+    df <- dplyr::mutate(df_geo_counts, grouping = "nogroup") |>
+      dplyr::select(-choro_value)
   } else {
     if (is_agg) {
       df <- df |>
@@ -1132,13 +1140,13 @@ get_map_circle_df <- function(df,
         name = "circle_value"
       )
     }
-    df <- left_join(
-      select(df_geo_counts, -c(choro_value, circle_value)),
+    df <- dplyr::left_join(
+      dplyr::select(df_geo_counts, -c(choro_value, circle_value)),
       df, by = geo_join
     ) |>
-      mutate(across(dplyr::where(is.numeric), as.double)) %>%
-      mutate(
-        across(dplyr::where(is.double), ~ dplyr::if_else(is.na(.x), 0, .x))
+      dplyr::mutate(across(dplyr::where(is.numeric), as.double)) %>%
+      dplyr::mutate(
+        dplyr::across(dplyr::where(is.double), ~ dplyr::if_else(is.na(.x), 0, .x))
       )
   }
   if (is.numeric(df$circle_value)) dplyr::filter(df, .data$circle_value > 0)

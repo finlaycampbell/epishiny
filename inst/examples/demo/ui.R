@@ -35,7 +35,6 @@ ui <-tagList(
           place_ui(
             id = "map",
             tooltip = "Click on a polygon to filter other graphics to this region",
-            df = df,
             geo_data = geo_data,
             group_vars = group_vars
           ),
