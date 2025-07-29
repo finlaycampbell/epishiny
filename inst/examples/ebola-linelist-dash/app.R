@@ -1,7 +1,7 @@
 library(shiny)
 library(bslib)
-# library(epishiny)
-pkgload::load_all()
+library(sf)
+library(epishiny)
 
 geo_data <- list(
   geo_layer(
@@ -44,7 +44,7 @@ ui <- page_sidebar(
   title = "epishiny",
   # sidebar
   sidebar = filter_ui(
-    "filter",
+    id = "filter",
     group_vars = group_vars,
     period_lab = "Hospitalisation period"
   ),
@@ -116,6 +116,3 @@ server <- function(input, output, session) {
 
 # launch app
 shinyApp(ui, server)
-# if (interactive()) {
-#   shinyApp(ui, server)
-# }

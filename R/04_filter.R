@@ -15,6 +15,8 @@
 #' @param filter_btn_tooltip The tooltip for the filter data button.
 #' @param reset_btn_lab The label for the reset filters button.
 #' @param bg The background color of the sidebar.
+#' @param wrapper A function that wraps the sidebar UI elements. Defaults to `bslib::sidebar()`.
+#'   Change if you don't want the filter UI to be a sidebar.
 #'
 #' @return A [bslib::sidebar] UI element with date filters, group filters, and action buttons.
 #'
@@ -32,14 +34,12 @@ filter_ui <- function(
   filter_btn_lab = "update",
   filter_btn_tooltip = "Click here to apply filters and update the graphics",
   reset_btn_lab = "Reset",
-  bg = "#fff"
+  bg = "#fff",
+  wrapper = \(...) bslib::sidebar(..., id = id, bg = bg)
 ) {
   ns <- NS(id)
 
-  bslib::sidebar(
-    id = ns("sb"),
-    title = NULL,
-    bg = bg,
+  wrapper(
     div(
       class = "d-flex justify-content-between align-items-center",
       tags$h5(title),

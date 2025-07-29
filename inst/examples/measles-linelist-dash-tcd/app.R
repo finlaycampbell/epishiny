@@ -1,7 +1,19 @@
 library(shiny)
 library(bslib)
+library(querychat)
 # library(epishiny)
 pkgload::load_all()
+
+greeting <- paste(readLines(here::here("inst/examples/measles-linelist-dash-tcd/greeting.md")), collapse = "\n")
+data_description <- paste(readLines(here::here("inst/examples/measles-linelist-dash-tcd/data-description.md")), collapse = "\n")
+
+querychat_config <- querychat_init(
+  df_ll_measles,
+  greeting = greeting,
+  data_description = data_description,
+  extra_instructions = "Use British English spelling when responding in English.",
+  create_chat_func = purrr::partial(ellmer::chat_anthropic, model = "claude-sonnet-4-20250514")
+)
 
 geo_data <- list(
   # geo_layer(
@@ -77,12 +89,33 @@ ui <- tagList(
       layout_sidebar(
         padding = 10,
         # sidebar
-        sidebar = filter_ui(
-          "filter",
-          group_vars = group_vars,
-          # date_range = date_range,
-          period_lab = "Onset period"
+        sidebar = sidebar(
+          width = 400,
+          bg = "#fff",
+          bslib::navset_tab(
+            bslib::nav_panel(
+              "AI Assistant",
+              icon = bsicons::bs_icon("robot"),
+              querychat_ui("chat")
+            ),
+            bslib::nav_panel(
+              "Manual Inputs",
+              icon = bsicons::bs_icon("sliders2"),
+              filter_ui(
+                "filter",
+                group_vars = group_vars,
+                period_lab = "Onset period",
+                wrapper = \(...) div(class = "mt-2", ...)
+              )
+            )
+          )
         ),
+        # sidebar = filter_ui(
+        #   "filter",
+        #   group_vars = group_vars,
+        #   # date_range = date_range,
+        #   period_lab = "Onset period"
+        # ),
         # main content
         layout_column_wrap(
           width = 1 / 2,
@@ -150,7 +183,11 @@ ui <- tagList(
 
 # app server
 server <- function(input, output, session) {
-  app_data <- filter_server(
+  app_data <- reactiveVal()
+
+  llm_data <- querychat_server("chat", querychat_config)
+
+  filter_data <- filter_server(
     id = "filter",
     df = df_ll_measles,
     date_var = "date_onset",
@@ -158,6 +195,16 @@ server <- function(input, output, session) {
     time_filter = reactive(bar_click()),
     place_filter = reactive(map_click())
   )
+
+  observe({
+    app_data(list(df = llm_data$df()))
+  })
+
+  observe({
+    app_data(filter_data())
+  }) |>
+    bindEvent(filter_data(), ignoreInit = TRUE)
+
   map_click <- place_server(
     id = "place",
     df = reactive(app_data()$df),
@@ -166,8 +213,8 @@ server <- function(input, output, session) {
     choro_lab = "Attack rate</br>/100 000",
     choro_pal = hrbrthemes::flexoki_extended$red[1:10],
     show_parent_borders = TRUE,
-    time_filter = reactive(bar_click()),
-    filter_info = reactive(app_data()$filter_info)
+    time_filter = reactive(bar_click())
+    # filter_info = reactive(app_data()$filter_info)
   )
   bar_click <- time_server(
     id = "time",
@@ -179,8 +226,8 @@ server <- function(input, output, session) {
     ratio_lab = "CFR",
     ratio_numer = "dead",
     ratio_denom = c("dead", "recovered", "left against medical advice"),
-    place_filter = reactive(map_click()),
-    filter_info = reactive(app_data()$filter_info)
+    place_filter = reactive(map_click())
+    # filter_info = reactive(app_data()$filter_info)
   )
   person_server(
     id = "person",
@@ -192,8 +239,8 @@ server <- function(input, output, session) {
     male_level = "m",
     female_level = "f",
     time_filter = reactive(bar_click()),
-    place_filter = reactive(map_click()),
-    filter_info = reactive(app_data()$filter_info)
+    place_filter = reactive(map_click())
+    # filter_info = reactive(app_data()$filter_info)
   )
 }
 

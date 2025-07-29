@@ -16,7 +16,8 @@ filter_ui(
   filter_btn_lab = "update",
   filter_btn_tooltip = "Click here to apply filters and update the graphics",
   reset_btn_lab = "Reset",
-  bg = "#fff"
+  bg = "#fff",
+  wrapper = function(...) bslib::sidebar(..., id = id, bg = bg)
 )
 
 filter_server(
@@ -50,6 +51,9 @@ filter_server(
 \item{reset_btn_lab}{The label for the reset filters button.}
 
 \item{bg}{The background color of the sidebar.}
+
+\item{wrapper}{A function that wraps the sidebar UI elements. Defaults to \code{bslib::sidebar()}.
+Change if you don't want the filter UI to be a sidebar.}
 
 \item{df}{Data frame or tibble of patient level or aggregated data. Can be either a shiny reactive or static dataset.}
 
@@ -101,9 +105,6 @@ geo_data <- list(
   )
 )
 
-# range of dates used in filter module to filter time period
-date_range <- range(df_ll$date_notification, na.rm = TRUE)
-
 # define date variables in data as named list to be used in app
 date_vars <- c(
   "Date of notification" = "date_notification",
@@ -129,7 +130,6 @@ ui <- page_sidebar(
   sidebar = filter_ui(
     "filter",
     group_vars = group_vars,
-    # date_range = date_range,
     period_lab = "Notification period"
   ),
   # main content

@@ -27,9 +27,6 @@ geo_data <- list(
   )
 )
 
-# range of dates used in filter module to filter time period
-date_range <- range(df_ll$date_notification, na.rm = TRUE)
-
 # define date variables in data as named list to be used in app
 date_vars <- c(
   "Date of notification" = "date_notification",
@@ -55,7 +52,6 @@ ui <- page_sidebar(
   sidebar = filter_ui(
     "filter",
     group_vars = group_vars,
-    # date_range = date_range,
     period_lab = "Notification period"
   ),
   # main content

@@ -127,3 +127,37 @@
 #' sf_sle$adm1
 #' sf_sle$adm2
 "sf_sle"
+
+#' Example Measles Linelist Data for Chad
+#'
+#' A 'linelist' is a (tidy) data format used in public health data collection
+#' with each row representing an individual (patient, participant, etc) and
+#' each column representing a variable associated with said individual.
+#'
+#' `df_ll_measles` contains simulated measles outbreak data for the Mandoul region
+#' of Chad. The data is derived from [episimdata::moissala_linelist_clean_EN] and
+#' includes temporal, demographic, and geographic information for each patient,
+#' with administrative boundary pcodes added for spatial analysis.
+#'
+#' @format a tibble dataframe
+#' @examples
+#' df_ll_measles
+"df_ll_measles"
+
+#' Chad Mandoul Region Administrative Boundaries
+#'
+#' A list of length 3 containing geographic administrative boundary data
+#' for the Mandoul region of Chad, stored as simple features (sf) objects.
+#' Includes administrative levels 1, 2, and 4 (Region, Sub-Prefecture and Village/Commune, respectively).
+#'
+#' Each admin level can be joined to the example [`df_ll_measles`] dataset with a join by
+#' specification of `c("pcode" = "adm1_pcode")`, `c("pcode" = "adm2_pcode")`, and
+#' `c("pcode" = "adm4_pcode")` respectively. These should be passed as the `join_by`
+#' field in each `geo_data` specification passed to [place_ui] and [place_server].
+#'
+#' @format named list of sf objects
+#' @examples
+#' sf_tcd$adm1
+#' sf_tcd$adm2
+#' sf_tcd$adm4
+"sf_tcd"
