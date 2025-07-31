@@ -15,10 +15,10 @@
 #' @param filter_btn_tooltip The tooltip for the filter data button.
 #' @param reset_btn_lab The label for the reset filters button.
 #' @param bg The background color of the sidebar.
-#' @param wrapper A function that wraps the sidebar UI elements. Defaults to `bslib::sidebar()`.
+#' @param wrapper A function that wraps the sidebar UI elements. Defaults to [bslib::sidebar].
 #'   Change if you don't want the filter UI to be a sidebar.
 #'
-#' @return A [bslib::sidebar] UI element with date filters, group filters, and action buttons.
+#' @return A UI `wrapper` with date filters, group filters, and action buttons.
 #'
 #' @import shiny
 #' @export

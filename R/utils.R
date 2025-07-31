@@ -443,8 +443,8 @@ my_hc_export <- function(
 #' @noRd
 leaf_basemap <- function(
   bbox,
-  baseGroups = c("Light", "OSM", "OSM HOT"),
-  overlayGroups = c("Boundaries"),
+  baseGroups = c("CartoDB", "OSM", "OSM.HOT", "Esri", "Stadia"),
+  overlayGroups = character(0),
   miniMap = TRUE
 ) {
   lf <- leaflet::leaflet() %>%
@@ -454,14 +454,16 @@ leaf_basemap <- function(
     leaflet::addMapPane(name = "circles", zIndex = 410) %>%
     leaflet::addMapPane(name = "boundaries", zIndex = 420) %>%
     leaflet::addMapPane(name = "geo_highlight", zIndex = 430) %>%
-    leaflet::addProviderTiles("CartoDB.PositronNoLabels", group = "Light") %>%
+    leaflet::addProviderTiles("CartoDB.PositronNoLabels", group = "CartoDB") %>%
     leaflet::addProviderTiles(
       "CartoDB.PositronOnlyLabels",
-      group = "Light",
+      group = "CartoDB",
       options = leaflet::leafletOptions(pane = "place_labels")
     ) %>%
     leaflet::addProviderTiles("OpenStreetMap", group = "OSM") %>%
-    leaflet::addProviderTiles("OpenStreetMap.HOT", group = "OSM HOT") %>%
+    leaflet::addProviderTiles("OpenStreetMap.HOT", group = "OSM.HOT") %>%
+    leaflet::addProviderTiles("Esri.WorldGrayCanvas", group = "Esri") %>%
+    leaflet::addProviderTiles("Stadia.AlidadeSmooth", group = "Stadia") %>%
     leaflet::addScaleBar(
       position = "bottomright",
       options = leaflet::scaleBarOptions(imperial = FALSE)
