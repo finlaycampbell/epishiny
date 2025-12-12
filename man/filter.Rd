@@ -52,7 +52,7 @@ filter_server(
 
 \item{bg}{The background color of the sidebar.}
 
-\item{wrapper}{A function that wraps the sidebar UI elements. Defaults to \code{bslib::sidebar()}.
+\item{wrapper}{A function that wraps the sidebar UI elements. Defaults to \link[bslib:sidebar]{bslib::sidebar}.
 Change if you don't want the filter UI to be a sidebar.}
 
 \item{df}{Data frame or tibble of patient level or aggregated data. Can be either a shiny reactive or static dataset.}
@@ -66,7 +66,7 @@ its filter information to the filter sidebar}
 its filter information to the filter sidebar}
 }
 \value{
-A \link[bslib:sidebar]{bslib::sidebar} UI element with date filters, group filters, and action buttons.
+A UI \code{wrapper} with date filters, group filters, and action buttons.
 
 The server function returns both the filtered data and a formatted text string with filter information
 named \code{df} and \code{filter_info} respectively in a reactive list. These should be passed as arguments

@@ -443,7 +443,7 @@ my_hc_export <- function(
 #' @noRd
 leaf_basemap <- function(
   bbox,
-  baseGroups = c("CartoDB", "OSM", "OSM.HOT", "Esri", "Stadia"),
+  baseGroups = c("CartoDB", "OSM", "OSM.HOT", "Esri"),
   overlayGroups = character(0),
   miniMap = TRUE
 ) {
@@ -463,7 +463,6 @@ leaf_basemap <- function(
     leaflet::addProviderTiles("OpenStreetMap", group = "OSM") %>%
     leaflet::addProviderTiles("OpenStreetMap.HOT", group = "OSM.HOT") %>%
     leaflet::addProviderTiles("Esri.WorldGrayCanvas", group = "Esri") %>%
-    leaflet::addProviderTiles("Stadia.AlidadeSmooth", group = "Stadia") %>%
     leaflet::addScaleBar(
       position = "bottomright",
       options = leaflet::scaleBarOptions(imperial = FALSE)
