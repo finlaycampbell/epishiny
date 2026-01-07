@@ -298,37 +298,85 @@ update_group_filter <- function(session, var, df) {
 }
 
 #' @noRd
-setup_date_filter <- function(var, lab, ns, ...) {
+setup_date_filter <- function(var, lab, ns, single_date = FALSE, ...) {
   if (is.null(lab)) {
     lab <- var
   }
 
-  div(
-    # Enable/disable switch (OFF by default)
+  if (single_date) {
+    # Single date variable: show date input without toggle
     div(
-      style = "padding-bottom: 0;",
-      bslib::input_switch(
-        id = ns(paste0(var, "_enabled")),
-        label = lab,
-        value = FALSE
-      )
-    ),
-    # Date range input (shown only when enabled)
-    shiny::conditionalPanel(
-      condition = sprintf("input['%s']", paste0(var, "_enabled")),
-      ns = ns,
       dateRangeInput(
         inputId = ns(var),
-        label = NULL,
+        label = lab,
         min = NULL,
         max = NULL,
         start = NULL,
         end = NULL,
         weekstart = getOption("epishiny.week.start", 1),
         format = "d/m/yy"
+      ),
+      # Quick select buttons as button group
+      helpText("Quick select:"),
+      div(
+        class = "btn-group w-100",
+        role = "group",
+        style = "margin-top: 10px;",
+        actionButton(
+          ns(paste0(var, "_30days")),
+          "30d",
+          class = "btn-sm btn-light",
+          style = "flex: 1;"
+        ),
+        actionButton(
+          ns(paste0(var, "_3months")),
+          "3m",
+          class = "btn-sm btn-light",
+          style = "flex: 1;"
+        ),
+        actionButton(
+          ns(paste0(var, "_ytd")),
+          "YTD",
+          class = "btn-sm btn-light",
+          style = "flex: 1;"
+        ),
+        actionButton(
+          ns(paste0(var, "_full")),
+          "All",
+          class = "btn-sm btn-light",
+          style = "flex: 1;"
+        )
       )
     )
-  )
+  } else {
+    # Multiple date variables: show toggle switch
+    div(
+      # Enable/disable switch (OFF by default)
+      div(
+        style = "padding-bottom: 0;",
+        bslib::input_switch(
+          id = ns(paste0(var, "_enabled")),
+          label = lab,
+          value = FALSE
+        )
+      ),
+      # Date range input (shown only when enabled)
+      shiny::conditionalPanel(
+        condition = sprintf("input['%s']", paste0(var, "_enabled")),
+        ns = ns,
+        dateRangeInput(
+          inputId = ns(var),
+          label = NULL,
+          min = NULL,
+          max = NULL,
+          start = NULL,
+          end = NULL,
+          weekstart = getOption("epishiny.week.start", 1),
+          format = "d/m/yy"
+        )
+      )
+    )
+  }
 }
 
 #' @noRd

@@ -62,7 +62,13 @@ filter_ui <- function(
       bslib::accordion_panel(
         date_filters_lab,
         if (length(date_vars)) {
-          purrr::map2(date_vars, names(date_vars), setup_date_filter, ns)
+          # Single date variable: show without toggle, with quick select buttons
+          single_date <- length(date_vars) == 1
+          purrr::map2(
+            date_vars,
+            names(date_vars),
+            ~ setup_date_filter(.x, .y, ns, single_date = single_date)
+          )
         } else {
           shiny::helpText("No date variables configured")
         }
@@ -141,6 +147,59 @@ filter_server <- function(
         }
       }) %>%
         shiny::bindEvent(df_mod())
+
+      # Quick select buttons (only for single date variable)
+      if (length(date_vars) == 1) {
+        var <- unname(date_vars)[1]
+
+        # Past 30 days button
+        observeEvent(input[[paste0(var, "_30days")]], {
+          date_range <- range(df_mod()[[var]], na.rm = TRUE)
+          start_date <- max(date_range[2] - 29, date_range[1])
+          shiny::updateDateRangeInput(
+            session,
+            var,
+            start = start_date,
+            end = date_range[2]
+          )
+        })
+
+        # Past 3 months button
+        observeEvent(input[[paste0(var, "_3months")]], {
+          date_range <- range(df_mod()[[var]], na.rm = TRUE)
+          start_date <- max(date_range[2] - 90, date_range[1])
+          shiny::updateDateRangeInput(
+            session,
+            var,
+            start = start_date,
+            end = date_range[2]
+          )
+        })
+
+        # Year to date button
+        observeEvent(input[[paste0(var, "_ytd")]], {
+          date_range <- range(df_mod()[[var]], na.rm = TRUE)
+          start_date <- as.Date(paste0(format(date_range[2], "%Y"), "-01-01"))
+          start_date <- max(start_date, date_range[1])
+          shiny::updateDateRangeInput(
+            session,
+            var,
+            start = start_date,
+            end = date_range[2]
+          )
+        })
+
+        # Full period button
+        observeEvent(input[[paste0(var, "_full")]], {
+          date_range <- range(df_mod()[[var]], na.rm = TRUE)
+          shiny::updateDateRangeInput(
+            session,
+            var,
+            start = date_range[1],
+            end = date_range[2]
+          )
+        })
+      }
 
       # ==========================================================================
       # DATA
@@ -249,8 +308,13 @@ filter_server <- function(
 
         # Apply date filters only for enabled date variables
         if (length(date_vars)) {
-          # Get enabled date variables
-          enabled_dates <- purrr::keep(date_vars, ~ isolate(input[[paste0(.x, "_enabled")]]))
+          # Single date variable: always enabled (no toggle)
+          # Multiple date variables: check which are enabled
+          if (length(date_vars) == 1) {
+            enabled_dates <- date_vars
+          } else {
+            enabled_dates <- purrr::keep(date_vars, ~ isolate(input[[paste0(.x, "_enabled")]]))
+          }
 
           if (length(enabled_dates)) {
             # Create filter for each enabled date variable
@@ -288,7 +352,13 @@ filter_server <- function(
         # Generate filter info for enabled date variables
         date_filters <- NULL
         if (length(date_vars)) {
-          enabled_dates <- purrr::keep(date_vars, ~ isolate(input[[paste0(.x, "_enabled")]]))
+          # Single date variable: always enabled (no toggle)
+          # Multiple date variables: check which are enabled
+          if (length(date_vars) == 1) {
+            enabled_dates <- date_vars
+          } else {
+            enabled_dates <- purrr::keep(date_vars, ~ isolate(input[[paste0(.x, "_enabled")]]))
+          }
 
           if (length(enabled_dates)) {
             date_filters <- purrr::map2(
@@ -297,9 +367,14 @@ filter_server <- function(
               ~ {
                 date_range <- input[[.x]]
                 if (length(date_range) == 2) {
-                  glue::glue(
-                    "{.y}: {format(date_range[1], '%d/%b/%y')} - {format(date_range[2], '%d/%b/%y')}"
-                  )
+                  # Get full date range from data
+                  full_range <- range(df_mod()[[.x]], na.rm = TRUE)
+                  # Only show filter info if selected range differs from full range
+                  if (as.Date(date_range[1]) != full_range[1] || as.Date(date_range[2]) != full_range[2]) {
+                    glue::glue(
+                      "{.y}: {format(date_range[1], '%d/%b/%y')} - {format(date_range[2], '%d/%b/%y')}"
+                    )
+                  }
                 }
               }
             ) %>%
@@ -338,7 +413,7 @@ filter_server <- function(
           rv$filter_info <- NULL
         }
       }) %>%
-        shiny::bindEvent(input$go, ignoreNULL = FALSE, ignoreInit = FALSE)
+        shiny::bindEvent(input$go, ignoreNULL = FALSE, ignoreInit = TRUE)
 
       output$filter_info <- renderUI({
         fi <- rv$filter_info
