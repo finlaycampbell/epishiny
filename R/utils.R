@@ -298,6 +298,58 @@ update_group_filter <- function(session, var, df) {
 }
 
 #' @noRd
+setup_date_filter <- function(var, lab, ns, ...) {
+  if (is.null(lab)) {
+    lab <- var
+  }
+
+  div(
+    # Enable/disable switch (OFF by default)
+    div(
+      style = "padding-bottom: 0;",
+      bslib::input_switch(
+        id = ns(paste0(var, "_enabled")),
+        label = lab,
+        value = FALSE
+      )
+    ),
+    # Date range input (shown only when enabled)
+    shiny::conditionalPanel(
+      condition = sprintf("input['%s']", paste0(var, "_enabled")),
+      ns = ns,
+      dateRangeInput(
+        inputId = ns(var),
+        label = NULL,
+        min = NULL,
+        max = NULL,
+        start = NULL,
+        end = NULL,
+        weekstart = getOption("epishiny.week.start", 1),
+        format = "d/m/yy"
+      )
+    )
+  )
+}
+
+#' @noRd
+update_date_filter <- function(session, var, df) {
+  vec <- df[[var]]
+  if (lubridate::is.Date(vec) || lubridate::is.POSIXt(vec)) {
+    date_range <- range(vec, na.rm = TRUE)
+    shiny::updateDateRangeInput(
+      session,
+      var,
+      min = date_range[1],
+      max = date_range[2],
+      start = date_range[1],
+      end = date_range[2]
+    )
+  } else {
+    warning(sprintf("Date variable '%s' is not a Date or POSIXt class", var))
+  }
+}
+
+#' @noRd
 make_select_filter <- function(var, lab, ns, df, ...) {
   vec <- df[[var]]
   if (is.factor(vec)) {

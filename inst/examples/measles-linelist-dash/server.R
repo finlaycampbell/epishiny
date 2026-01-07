@@ -3,7 +3,7 @@ server <- function(input, output, session) {
   app_data <- filter_server(
     id = "filter",
     df = df_ll,
-    date_var = "date_notification",
+    date_vars = date_vars,
     time_filter = reactive(bar_click()),
     place_filter = reactive(map_click()),
     group_vars = group_vars

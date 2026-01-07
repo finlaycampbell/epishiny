@@ -45,8 +45,8 @@ ui <- page_sidebar(
   # sidebar
   sidebar = filter_ui(
     id = "filter",
-    group_vars = group_vars,
-    period_lab = "Hospitalisation period"
+    date_vars = date_vars,
+    group_vars = group_vars
   ),
   # main content
   layout_columns(
@@ -74,7 +74,7 @@ server <- function(input, output, session) {
   app_data <- filter_server(
     id = "filter",
     df = df_ll_ebola,
-    date_var = "date_of_hospitalisation",
+    date_vars = date_vars,
     group_vars = group_vars,
     time_filter = reactive(bar_click()),
     place_filter = reactive(map_click())

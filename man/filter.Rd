@@ -7,11 +7,10 @@
 \usage{
 filter_ui(
   id,
+  date_vars,
   group_vars,
   title = tags$span(bsicons::bs_icon("filter"), "Filters"),
   date_filters_lab = "Date filters",
-  period_lab = "Period",
-  missing_dates_lab = "Include patients with missing dates?",
   group_filters_lab = "Group filters",
   filter_btn_lab = "update",
   filter_btn_tooltip = "Click here to apply filters and update the graphics",
@@ -23,7 +22,7 @@ filter_ui(
 filter_server(
   id,
   df,
-  date_var,
+  date_vars,
   group_vars,
   time_filter = shiny::reactiveVal(),
   place_filter = shiny::reactiveVal()
@@ -32,15 +31,13 @@ filter_server(
 \arguments{
 \item{id}{Module id. Must be the same in both the UI and server function to link the two.}
 
+\item{date_vars}{named character vector of date variables in the data frame to be filtered on. Names are used as labels, values as column names.}
+
 \item{group_vars}{named character vector of categorical variables for the data grouping input. Names are used as variable labels.}
 
 \item{title}{The title of the sidebar.}
 
 \item{date_filters_lab}{The label for the date filters accordion panel.}
-
-\item{period_lab}{The label for the date range input.}
-
-\item{missing_dates_lab}{The label for the include missing dates checkbox.}
 
 \item{group_filters_lab}{The label for the group filters accordion panel.}
 
@@ -56,8 +53,6 @@ filter_server(
 Change if you don't want the filter UI to be a sidebar.}
 
 \item{df}{Data frame or tibble of patient level or aggregated data. Can be either a shiny reactive or static dataset.}
-
-\item{date_var}{The name of the date variable in the data frame to be filtered on.}
 
 \item{time_filter}{supply the output of \code{\link[=time_server]{time_server()}} wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} here to add
 its filter information to the filter sidebar}
@@ -129,8 +124,8 @@ ui <- page_sidebar(
   # sidebar
   sidebar = filter_ui(
     "filter",
-    group_vars = group_vars,
-    period_lab = "Notification period"
+    date_vars = date_vars,
+    group_vars = group_vars
   ),
   # main content
   layout_columns(
@@ -156,7 +151,7 @@ server <- function(input, output, session) {
   app_data <- filter_server(
     id = "filter",
     df = df_ll,
-    date_var = "date_notification",
+    date_vars = date_vars,
     group_vars = group_vars
   )
   place_server(

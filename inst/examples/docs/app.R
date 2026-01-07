@@ -51,8 +51,8 @@ ui <- page_sidebar(
   # sidebar
   sidebar = filter_ui(
     "filter",
-    group_vars = group_vars,
-    period_lab = "Notification period"
+    date_vars = date_vars,
+    group_vars = group_vars
   ),
   # main content
   layout_columns(
@@ -78,7 +78,7 @@ server <- function(input, output, session) {
   app_data <- filter_server(
     id = "filter",
     df = df_ll,
-    date_var = "date_notification",
+    date_vars = date_vars,
     group_vars = group_vars
   )
   place_server(

@@ -103,8 +103,8 @@ ui <- tagList(
               icon = bsicons::bs_icon("sliders2"),
               filter_ui(
                 "filter",
+                date_vars = date_vars,
                 group_vars = group_vars,
-                period_lab = "Onset period",
                 wrapper = \(...) div(class = "mt-2", ...)
               )
             )
@@ -190,7 +190,7 @@ server <- function(input, output, session) {
   filter_data <- filter_server(
     id = "filter",
     df = df_ll_measles,
-    date_var = "date_onset",
+    date_vars = date_vars,
     group_vars = group_vars,
     time_filter = reactive(bar_click()),
     place_filter = reactive(map_click())

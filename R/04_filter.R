@@ -5,11 +5,10 @@
 #' @rdname filter
 #'
 #' @param id Module id. Must be the same in both the UI and server function to link the two.
+#' @param date_vars named character vector of date variables for filtering. Names are used as variable labels in the UI.
 #' @param group_vars named character vector of categorical variables for the data grouping input. Names are used as variable labels.
 #' @param title The title of the sidebar.
 #' @param date_filters_lab The label for the date filters accordion panel.
-#' @param period_lab The label for the date range input.
-#' @param missing_dates_lab The label for the include missing dates checkbox.
 #' @param group_filters_lab The label for the group filters accordion panel.
 #' @param filter_btn_lab The label for the filter data button.
 #' @param filter_btn_tooltip The tooltip for the filter data button.
@@ -25,11 +24,10 @@
 #' @example inst/examples/docs/app.R
 filter_ui <- function(
   id,
+  date_vars,
   group_vars,
   title = tags$span(bsicons::bs_icon("filter"), "Filters"),
   date_filters_lab = "Date filters",
-  period_lab = "Period",
-  missing_dates_lab = "Include patients with missing dates?",
   group_filters_lab = "Group filters",
   filter_btn_lab = "update",
   filter_btn_tooltip = "Click here to apply filters and update the graphics",
@@ -63,28 +61,11 @@ filter_ui <- function(
       multiple = FALSE,
       bslib::accordion_panel(
         date_filters_lab,
-        dateRangeInput(
-          inputId = ns("date"),
-          label = period_lab,
-          min = NULL, # date_range[1],
-          max = NULL, # date_range[2],
-          start = NULL, # date_range[1],
-          end = NULL, # date_range[2],
-          weekstart = getOption("epishiny.week.start", 1),
-          format = "d/m/yy"
-        ),
-        # actionButton(ns("days_all"), "Période complète", class = "btn-sm"),
-        # actionButton(ns("days_14"), "14 jours", class = "btn-sm"),
-        # actionButton(ns("days_7"), "7 jours", class = "btn-sm"),
-        # actionButton(ns("days_1"), "Dernier jour", class = "btn-sm"),
-        div(
-          style = "padding-top: 10px;",
-          bslib::input_switch(
-            id = ns("include_date_na"),
-            label = missing_dates_lab,
-            value = TRUE
-          )
-        )
+        if (length(date_vars)) {
+          purrr::map2(date_vars, names(date_vars), setup_date_filter, ns)
+        } else {
+          shiny::helpText("No date variables configured")
+        }
       ),
       bslib::accordion_panel(
         group_filters_lab,
@@ -114,7 +95,7 @@ filter_ui <- function(
 
 
 #' @param df Data frame or tibble of patient level or aggregated data. Can be either a shiny reactive or static dataset.
-#' @param date_var The name of the date variable in the data frame to be filtered on.
+#' @param date_vars named character vector of date variables in the data frame to be filtered on. Names are used as labels, values as column names.
 #' @param time_filter supply the output of [time_server()] wrapped in a [shiny::reactive()] here to add
 #'  its filter information to the filter sidebar
 #' @param place_filter supply the output of [place_server()] wrapped in a [shiny::reactive()] here to add
@@ -130,7 +111,7 @@ filter_ui <- function(
 filter_server <- function(
   id,
   df,
-  date_var,
+  date_vars,
   group_vars,
   time_filter = shiny::reactiveVal(),
   place_filter = shiny::reactiveVal()
@@ -150,6 +131,14 @@ filter_server <- function(
 
       observe({
         purrr::walk(group_vars, ~ update_group_filter(session, .x, df_mod()))
+      }) %>%
+        shiny::bindEvent(df_mod())
+
+      # Update date range inputs from data for each date variable
+      observe({
+        if (length(date_vars)) {
+          purrr::walk(date_vars, ~ update_date_filter(session, .x, df_mod()))
+        }
       }) %>%
         shiny::bindEvent(df_mod())
 
@@ -173,19 +162,6 @@ filter_server <- function(
 
       observe({
         rv$df <- df_mod()
-      })
-
-      # set date range input as range from data date_var
-      observe({
-        date_range <- range(df_mod()[[date_var]], na.rm = TRUE)
-        shiny::updateDateRangeInput(
-          session = session,
-          inputId = "date",
-          min = date_range[1],
-          max = date_range[2],
-          start = date_range[1],
-          end = date_range[2]
-        )
       })
 
       # reset sidebar inputs when button clicked
@@ -268,19 +244,35 @@ filter_server <- function(
       # ==========================================================================
 
       observe({
-        # first filter dates
-        date_range <- input$date
+        # Start with full dataset
+        df_out <- df_mod()
 
-        df_out <- df_mod() %>%
-          dplyr::filter(
-            ((.data[[date_var]] >= as.Date(date_range[1]) & .data[[date_var]] <= as.Date(date_range[2])) | is.na(.data[[date_var]]))
-          )
+        # Apply date filters only for enabled date variables
+        if (length(date_vars)) {
+          # Get enabled date variables
+          enabled_dates <- purrr::keep(date_vars, ~ isolate(input[[paste0(.x, "_enabled")]]))
 
-        if (!isolate(input$include_date_na)) {
-          df_out <- df_out %>% dplyr::filter(!is.na(.data[[date_var]]))
+          if (length(enabled_dates)) {
+            # Create filter for each enabled date variable
+            date_filters <- purrr::map(
+              enabled_dates,
+              ~ {
+                date_range <- input[[.x]]
+                # Create logical vector for this date filter
+                # Missing dates are excluded when filter is enabled
+                date_match <- c(
+                  df_out[[.x]] >= as.Date(date_range[1]) & df_out[[.x]] <= as.Date(date_range[2])
+                )
+                date_match
+              }
+            )
+            # Combine all date filters with AND logic
+            combined_date_filter <- purrr::reduce(date_filters, ~ .x & .y)
+            df_out <- df_out %>% dplyr::filter(combined_date_filter)
+          }
         }
 
-        # then filter over all picker inputs
+        # Then filter over all group picker inputs
         each_var <- purrr::map(group_vars, ~ filter_var(df_out[[.x]], input[[.x]]))
         selected <- purrr::reduce(each_var, ~ .x & .y)
         df_out <- df_out %>% dplyr::filter(selected)
@@ -293,10 +285,30 @@ filter_server <- function(
       # FILTER INFORMATION TEXT OUTPUT
       # ==========================================================================
       observe({
-        date_filters <- glue::glue(
-          "Period: {format(input$date[1], '%d/%b/%y')} - {format(input$date[2], '%d/%b/%y')}"
-        )
+        # Generate filter info for enabled date variables
+        date_filters <- NULL
+        if (length(date_vars)) {
+          enabled_dates <- purrr::keep(date_vars, ~ isolate(input[[paste0(.x, "_enabled")]]))
 
+          if (length(enabled_dates)) {
+            date_filters <- purrr::map2(
+              unname(enabled_dates),
+              names(enabled_dates),
+              ~ {
+                date_range <- input[[.x]]
+                if (length(date_range) == 2) {
+                  glue::glue(
+                    "{.y}: {format(date_range[1], '%d/%b/%y')} - {format(date_range[2], '%d/%b/%y')}"
+                  )
+                }
+              }
+            ) %>%
+              purrr::compact() %>%
+              purrr::list_simplify()
+          }
+        }
+
+        # Generate filter info for group filters
         group_filters <- purrr::map2(
           unname(group_vars),
           names(group_vars),
@@ -309,13 +321,22 @@ filter_server <- function(
           purrr::compact() %>%
           purrr::list_simplify()
 
-        fi_out <- glue::glue("<b>Filters applied</b></br>{date_filters}")
+        # Build final filter info string
+        if (!is.null(date_filters) || !is.null(group_filters)) {
+          fi_out <- "<b>Filters applied</b>"
 
-        if (!is.null(group_filters)) {
-          fi_out <- glue::glue("{fi_out}</br>{glue::glue_collapse(group_filters, sep = '</br>')}")
+          if (!is.null(date_filters)) {
+            fi_out <- glue::glue("{fi_out}</br>{glue::glue_collapse(date_filters, sep = '</br>')}")
+          }
+
+          if (!is.null(group_filters)) {
+            fi_out <- glue::glue("{fi_out}</br>{glue::glue_collapse(group_filters, sep = '</br>')}")
+          }
+
+          rv$filter_info <- fi_out
+        } else {
+          rv$filter_info <- NULL
         }
-
-        rv$filter_info <- fi_out
       }) %>%
         shiny::bindEvent(input$go, ignoreNULL = FALSE, ignoreInit = FALSE)
 
