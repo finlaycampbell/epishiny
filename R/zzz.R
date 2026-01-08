@@ -62,7 +62,15 @@
     highcharter.theme = highcharter::hc_theme_smpl(
       chart = list(style = list(fontFamily = fntfmly)),
       title = list(style = list(fontFamily = fntfmly)),
-      subtitle = list(style = list(fontFamily = fntfmly))
+      subtitle = list(style = list(fontFamily = fntfmly)),
+      xAxis = list(
+        title = list(style = list(fontSize = "1.4em")),
+        labels = list(style = list(fontSize = "1.2em"))
+      ),
+      yAxis = list(
+        title = list(style = list(fontSize = "1.4em")),
+        labels = list(style = list(fontSize = "1.2em"))
+      )
     )
   )
 }
