@@ -43,22 +43,29 @@ remotes::install_github("epicentre-msf/epishiny", dependencies = TRUE)
 
 ## Demo Dashboard
 
-Launch a demo dashboard with examples of every epishiny module with the
-`launch_demo_dashboard()` function. The code for the example dashboards
-can be found in
-[inst/examples/](https://github.com/epicentre-msf/epishiny/tree/main/inst/examples/)
-of the package repository.
+Launch a demo dashboard to see what `epishiny` can do:
+
+``` r
+library(epishiny)
+launch_demo_dashboard("ebola")
+```
 
 <img src="man/figures/dashboard.png" width="100%" />
 
-## Tutorials
+The code for the example dashboards can be found in
+[inst/examples/](https://github.com/epicentre-msf/epishiny/tree/main/inst/examples/)
+of the package repository.
+
+## Learn More
 
 See the articles below on the package website to get started using
-`epishiny` with your data.
+`epishiny` with your data:
 
 - [Getting
-  started](https://epicentre-msf.github.io/epishiny/articles/epishiny.html)
-- Use cases
+  started](https://epicentre-msf.github.io/epishiny/articles/epishiny.html) -
+  Build fully-featured dashboards in just a few lines of code with
+  `epi_dashboard()` and explore individual modules
+- Use cases:
   - [Linelist
     data](https://epicentre-msf.github.io/epishiny/articles/linelist_data.html)
   - [Aggregated

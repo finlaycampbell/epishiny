@@ -26,7 +26,7 @@
     stacking = "normal",
     groupPadding = 0.01,
     pointPadding = 0.01,
-    borderWidth = 1,
+    borderWidth = .5,
     borderColor = "white"
   )
 
@@ -64,12 +64,12 @@
       title = list(style = list(fontFamily = fntfmly)),
       subtitle = list(style = list(fontFamily = fntfmly)),
       xAxis = list(
-        title = list(style = list(fontSize = "1.4em")),
-        labels = list(style = list(fontSize = "1.2em"))
+        title = list(style = list(fontSize = "1em")),
+        labels = list(style = list(fontSize = "0.8em"))
       ),
       yAxis = list(
-        title = list(style = list(fontSize = "1.4em")),
-        labels = list(style = list(fontSize = "1.2em"))
+        title = list(style = list(fontSize = "1em")),
+        labels = list(style = list(fontSize = "0.8em"))
       )
     )
   )

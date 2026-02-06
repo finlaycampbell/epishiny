@@ -21,9 +21,13 @@
 #' @param circle_size_lab text label for the circle size slider input.
 #' @param opts_btn_lab text label for the dropdown menu button.
 #' @param download_lab text label for the download button.
+#' @param choro_pal_default RColorBrewer or viridis palette name to be used as the default option of the choropleth layer palette input.
 #' @param full_screen Add button to card to with the option to enter full screen mode?
+#' @param use_sidebar Logical. If TRUE, displays options in a sidebar instead of popover button. Default TRUE.
+#' @param sidebar_title String. Title for the sidebar. Only used if use_sidebar = TRUE. Default "Map options".
+#' @param sidebar_width Numeric. Width of sidebar in pixels. Only used if use_sidebar = TRUE. Default 280.
 #'
-#' @return A [bslib::card] UI element with options and download button and a leaflet map.
+#' @return A [bslib::card] UI element with options (in popover or sidebar) and a leaflet map.
 #' @export
 #' @example inst/examples/docs/app.R
 place_ui <- function(
@@ -41,7 +45,11 @@ place_ui <- function(
   circle_size_lab = "Circle size multiplyer",
   opts_btn_lab = "Map options",
   download_lab = "Download image of current map",
-  full_screen = TRUE
+  choro_pal_default = "Reds",
+  full_screen = TRUE,
+  use_sidebar = TRUE,
+  sidebar_title = NULL,
+  sidebar_width = 250
 ) {
   ns <- shiny::NS(id)
 
@@ -75,6 +83,17 @@ place_ui <- function(
     tt <- NULL
   }
 
+  inputs_ui <- place_options_ui(
+    ns = ns,
+    count_vars = count_vars,
+    group_vars = group_vars,
+    no_grouping_lab = no_grouping_lab,
+    count_vars_lab = count_vars_lab,
+    groups_lab = groups_lab,
+    circle_size_lab = circle_size_lab,
+    pal_default = choro_pal_default
+  )
+
   tagList(
     use_epishiny(),
     bslib::card(
@@ -94,133 +113,8 @@ place_ui <- function(
             status = "outline-primary"
           )
         ),
-        # options button and dropdown menu
-        bslib::popover(
-          title = opts_btn_lab,
-          id = ns("popover"),
-          placement = "left",
-          trigger = bsicons::bs_icon(
-            "gear",
-            title = opts_btn_lab,
-            class = "ms-2 text-primary",
-            size = "1.2em"
-          ),
-          # # Geo boundaries select ==========
-          # shinyWidgets::radioGroupButtons(
-          #   ns("geo_level"),
-          #   label = geo_lab,
-          #   size = "sm",
-          #   status = "outline-primary",
-          #   choices = geo_levels
-          # ),
-          # Choropleth Inputs ==============
-          tags$div(
-            class = "d-flex",
-            tags$h6("Choropleth Layer", class = "fw-bold text-decoration-underline pe-2"),
-            bslib::input_switch(
-              id = ns("choro_active"),
-              label = NULL,
-              value = TRUE,
-              width = "30px"
-            ) |>
-              bslib::tooltip(
-                "Show/Hide layer",
-                id = ns("tt-choro"),
-                placement = "top"
-              )
-          ),
-          selectInput(
-            ns("choro_var"),
-            label = "Display",
-            choices = c("Rates" = "attack_rate", "Counts" = "total"),
-            selected = "attack_rate",
-            multiple = FALSE,
-            selectize = FALSE
-          ),
-          tags$div(
-            # id = ns("choro_inputs"),
-            class = "d-flex justify-content-center align-items-start",
-            selectInput(
-              ns("choro_pal"),
-              label = "Palette",
-              choices = choro_pals(),
-              selected = "Reds",
-              multiple = FALSE,
-              selectize = FALSE
-            )
-            # numericInput(
-            #   inputId = ns("choro_alpha"),
-            #   label = "Alpha",
-            #   value = 8,
-            #   min = 1,
-            #   max = 10,
-            #   step = 1,
-            #   width = "60px"
-            # )
-          ),
-          bslib::input_switch(
-            id = ns("choro_pal_rev"),
-            label = "Reverse palette direction",
-            value = FALSE
-          ),
-          tags$div(
-            # id = ns("choro_inputs"),
-            class = "d-flex justify-content-center align-items-start",
-            selectInput(
-              ns("choro_breaks"),
-              label = "Breaks Method",
-              choices = choro_breaks(),
-              selected = "quantile",
-              multiple = FALSE,
-              selectize = FALSE,
-              width = 180
-            ),
-            numericInput(
-              inputId = ns("choro_nbreaks"),
-              label = "N Breaks",
-              value = 5,
-              min = 2,
-              max = 10,
-              step = 1,
-              width = "60px"
-            )
-          ),
-          tags$hr(),
-          # Symbols Inputs ==================
-          tags$div(
-            class = "d-flex",
-            tags$h6("Symbols Layer", class = "fw-bold text-decoration-underline pe-2"),
-            bslib::input_switch(
-              id = ns("symbols_active"),
-              label = NULL,
-              value = TRUE,
-              width = "30px"
-            ) |>
-              bslib::tooltip(id = ns("symbols_tt"), "Show/Hide layer", placement = "top")
-          ),
-          selectInput(
-            ns("count_var"),
-            label = count_vars_lab,
-            choices = count_vars,
-            multiple = FALSE,
-            selectize = FALSE
-          ),
-          selectInput(
-            ns("var"),
-            label = groups_lab,
-            choices = c(purrr::set_names("n", no_grouping_lab), group_vars),
-            multiple = FALSE,
-            selectize = FALSE
-          ),
-          sliderInput(
-            ns("circle_size_mult"),
-            label = circle_size_lab,
-            min = 1,
-            max = 10,
-            value = 6,
-            step = 1
-          )
-        ),
+        # tooltip if provided
+        tt,
         # only show download button if chrome available
         if (!is.null(chromote::find_chrome())) {
           downloadLink(
@@ -228,18 +122,60 @@ place_ui <- function(
             label = bsicons::bs_icon("download", class = "text-primary", size = "1.2em"),
             title = download_lab,
             class = "ms-2"
-            # icon = shiny::icon("camera"),
-            # class = "btn-sm btn-link pe-2 me-2"
           ) |>
             bslib::tooltip(download_lab)
         },
-        # tooltip at the end
-        tt
+        # options button - popover or sidebar toggle
+        if (!use_sidebar) {
+          # Popover mode
+          bslib::popover(
+            title = opts_btn_lab,
+            id = ns("popover"),
+            placement = "left",
+            trigger = bsicons::bs_icon(
+              "gear",
+              title = opts_btn_lab,
+              class = "ms-2 text-primary",
+              size = "1.2em"
+            ),
+            inputs_ui
+          )
+        } else {
+          # Sidebar mode - gear icon toggles sidebar
+          actionLink(
+            ns("toggle_sidebar"),
+            label = bsicons::bs_icon("gear", size = "1.2em"),
+            class = "ms-2 text-primary"
+          ) |>
+            bslib::tooltip(opts_btn_lab)
+        }
       ),
-      bslib::card_body(
-        padding = 0,
-        leaflet::leafletOutput(ns("map"))
-      ),
+      # Conditional card body based on layout mode
+      if (use_sidebar) {
+        # Sidebar layout
+        bslib::card_body(
+          padding = 0,
+          bslib::layout_sidebar(
+            padding = 0,
+            gap = 0,
+            sidebar = bslib::sidebar(
+              id = ns("place_sidebar"),
+              title = sidebar_title,
+              width = sidebar_width,
+              position = "right",
+              open = "closed",
+              inputs_ui
+            ),
+            leaflet::leafletOutput(ns("map"))
+          )
+        )
+      } else {
+        # Popover layout - just map in body
+        bslib::card_body(
+          padding = 0,
+          leaflet::leafletOutput(ns("map"))
+        )
+      },
       bslib::card_footer(uiOutput(ns("footer")))
     ),
     # add script to return dimensions of map back to server
@@ -273,19 +209,17 @@ place_ui <- function(
 
 #' @param df Data frame or tibble of patient level or aggregated data. Can be either a shiny reactive or static dataset.
 #' @param show_parent_borders Show borders of parent boundary levels?
-#' @param choro_lab Label for attack rate choropleth (only applicable if `geo_data` contains population data)
-#' @param choro_pal Colour palette passed to [`leaflet::colorBin()`] for attack rate choropleth
-#'  (only applicable if `geo_data` contains population data). See details of [`leaflet::colorBin()`]
-#'  for all palette options.
-#' @param choro_opacity Opacity of choropleth colour (only applicable if `geo_data` contains population data)
+#' @param choro_lab_rate Label for attack rate choropleth (only used if `geo_data` contains population data).
+#' @param choro_opacity Opacity of choropleth colour.
 #' @param export_width The width of the exported map image.
 #' @param export_height The height of the exported map image.
 #' @param filter_info If contained within an app using [filter_server()], supply the `filter_info` object
-#'   returned by that function here wrapped in a [shiny::reactive()] to add filter information to chart exports.
+#'   returned by that function here to add filter information to chart exports.
 #' @param filter_reset If contained within an app using [filter_server()], supply the `filter_reset` object
-#'   returned by that function here wrapped in a [shiny::reactive()] to reset any click event filters that have been set from by module.
-#' @param time_filter supply the output of [time_server()] wrapped in a [shiny::reactive()] here to filter
-#' the data by click events on the time module bar chart (clicking a bar will filter the data to the period the bar represents)
+#'   returned by that function here to reset any click event filters that have been set from by module.
+#' @param time_filter supply the output of [time_server()] here to filter
+#'   the data by click events on the time module bar chart (clicking a bar
+#'   will filter the data to the period the bar represents)
 #'
 #' @rdname place
 #'
@@ -299,8 +233,7 @@ place_server <- function(
   count_vars = NULL,
   group_vars = NULL,
   show_parent_borders = FALSE,
-  choro_lab = "Rate /100 000",
-  choro_pal = "OrRd",
+  choro_lab_rate = "Attack Rate /100 000",
   choro_opacity = .7,
   export_width = 1200,
   export_height = 650,
@@ -348,6 +281,11 @@ place_server <- function(
         html = waiter::spin_3(),
         color = waiter::transparent(alpha = 0)
       )
+
+      # Toggle sidebar when gear icon clicked
+      observeEvent(input$toggle_sidebar, {
+        bslib::sidebar_toggle("place_sidebar")
+      })
 
       # ==========================================================================
       # DATA
@@ -432,7 +370,7 @@ place_server <- function(
         geo_name_col_sym <- rlang::sym(geo_name_col)
         geo_level_name <- geo_select()$layer_name
         geo_pop_var <- geo_select()$pop_var
-        map_var <- input$var
+        map_var <- input$var %||% "n"
         map_var_sym <- rlang::sym(map_var)
         var_list <- c("n", group_vars)
         map_var_lab <- get_label(map_var, var_list)
@@ -638,7 +576,7 @@ place_server <- function(
             legend_position = "bottomright"
           )
 
-          add_choropleth_layer(map_proxy, df_geo_counts(), choro_settings, rv$n_lab, choro_lab)
+          add_choropleth_layer(map_proxy, df_geo_counts(), choro_settings, rv$n_lab, choro_lab_rate)
         }
       }) %>%
         bindEvent(
@@ -851,7 +789,7 @@ place_server <- function(
               df_geo_counts(),
               choro_settings,
               rv$n_lab,
-              choro_lab
+              choro_lab_rate
             )
           }
 
@@ -902,6 +840,109 @@ place_server <- function(
 }
 
 # =============================================================================
+# HELPER FUNCTION FOR OPTIONS UI
+# =============================================================================
+
+#' Generate place module options UI
+#' @noRd
+place_options_ui <- function(
+  ns,
+  count_vars,
+  group_vars,
+  no_grouping_lab,
+  count_vars_lab,
+  groups_lab,
+  circle_size_lab,
+  pal_default = "Reds"
+) {
+  bslib::accordion(
+    open = FALSE,
+    multiple = FALSE,
+    bslib::accordion_panel(
+      value = "choropleth",
+      title = "Choropleth Layer",
+      bslib::input_switch(
+        id = ns("choro_active"),
+        label = "Show choropleth layer",
+        value = TRUE
+      ),
+      selectInput(
+        ns("choro_var"),
+        label = "Display",
+        choices = c("Rates" = "attack_rate", "Counts" = "total"),
+        selected = "attack_rate",
+        multiple = FALSE,
+        selectize = FALSE
+      ),
+      selectInput(
+        ns("choro_pal"),
+        label = "Palette",
+        choices = choro_pals(),
+        selected = pal_default,
+        multiple = FALSE,
+        selectize = FALSE
+      ),
+      bslib::input_switch(
+        id = ns("choro_pal_rev"),
+        label = "Reverse palette",
+        value = FALSE
+      ),
+      tags$div(
+        class = "d-flex justify-content-start align-items-start",
+        selectInput(
+          ns("choro_breaks"),
+          label = "Breaks Method",
+          choices = choro_breaks(),
+          selected = "quantile",
+          multiple = FALSE,
+          selectize = FALSE
+        ),
+        numericInput(
+          inputId = ns("choro_nbreaks"),
+          label = "N Breaks",
+          value = 5,
+          min = 2,
+          max = 10,
+          step = 1,
+          width = "100px"
+        )
+      )
+    ),
+    bslib::accordion_panel(
+      value = "symbols",
+      title = "Symbols Layer",
+      bslib::input_switch(
+        id = ns("symbols_active"),
+        label = "Show symbols layer",
+        value = TRUE
+      ),
+      selectInput(
+        ns("count_var"),
+        label = count_vars_lab,
+        choices = count_vars,
+        multiple = FALSE,
+        selectize = FALSE
+      ),
+      selectInput(
+        ns("var"),
+        label = groups_lab,
+        choices = c(purrr::set_names("n", no_grouping_lab), group_vars),
+        multiple = FALSE,
+        selectize = FALSE
+      ),
+      sliderInput(
+        ns("circle_size_mult"),
+        label = circle_size_lab,
+        min = 1,
+        max = 10,
+        value = 6,
+        step = 1
+      )
+    )
+  )
+}
+
+# =============================================================================
 # HELPER FUNCTIONS FOR MAP LAYER RENDERING
 # =============================================================================
 
@@ -914,7 +955,7 @@ add_map_boundaries <- function(map, boundaries, geo_name_col, join_cols, n_lab, 
 
   # Filter to polygon geometries only
   boundaries <- boundaries %>%
-    dplyr::filter(sf::st_is(geometry, c("POLYGON", "MULTIPOLYGON")))
+    dplyr::filter(sf::st_is(sf::st_geometry(boundaries), c("POLYGON", "MULTIPOLYGON")))
 
   if (nrow(boundaries) == 0) {
     return(map)
@@ -945,7 +986,7 @@ add_map_boundaries <- function(map, boundaries, geo_name_col, join_cols, n_lab, 
 
 #' Add choropleth layer to leaflet map
 #' @noRd
-add_choropleth_layer <- function(map, df_map, choro_settings, n_lab, choro_lab) {
+add_choropleth_layer <- function(map, df_map, choro_settings, n_lab, rate_lab) {
   if (nrow(df_map) == 0) {
     return(map)
   }
@@ -953,7 +994,7 @@ add_choropleth_layer <- function(map, df_map, choro_settings, n_lab, choro_lab) 
   # Filter to polygons with data
   df_map <- df_map %>%
     dplyr::filter(
-      sf::st_is(geometry, c("POLYGON", "MULTIPOLYGON")),
+      sf::st_is(sf::st_geometry(df_map), c("POLYGON", "MULTIPOLYGON")),
       .data$total > 0
     )
 
@@ -968,11 +1009,11 @@ add_choropleth_layer <- function(map, df_map, choro_settings, n_lab, choro_lab) 
   }
 
   # Calculate breaks
-  safe_breaks <- purrr::safely(mapsf::mf_get_breaks, otherwise = 4)
+  safe_breaks <- purrr::safely(classInt::classIntervals, otherwise = 4)
   bins <- suppressWarnings(safe_breaks(
-    choro_values,
-    nbreaks = choro_settings$n_breaks,
-    breaks = choro_settings$breaks_method
+    var = choro_values,
+    n = choro_settings$n_breaks,
+    style = choro_settings$breaks_method
   ))
 
   if (!is.null(bins$error)) {
@@ -980,6 +1021,8 @@ add_choropleth_layer <- function(map, df_map, choro_settings, n_lab, choro_lab) 
       stringr::str_glue("{choro_settings$breaks_method} breaks could not be calculated for this data. Reverting to default breaks."),
       type = "error"
     )
+  } else {
+    bins$result <- unique(bins$result$brks)
   }
 
   # Create color palette
@@ -995,7 +1038,7 @@ add_choropleth_layer <- function(map, df_map, choro_settings, n_lab, choro_lab) 
   legend_title <- switch(
     choro_settings$variable,
     "total" = n_lab,
-    "attack_rate" = choro_lab,
+    "attack_rate" = rate_lab,
     choro_settings$variable
   )
 
@@ -1015,7 +1058,7 @@ add_choropleth_layer <- function(map, df_map, choro_settings, n_lab, choro_lab) 
       title = legend_title,
       data = df_map,
       pal = pal,
-      values = as.formula(paste0("~", choro_settings$variable)),
+      values = stats::as.formula(paste0("~", choro_settings$variable)),
       opacity = choro_settings$opacity,
       position = choro_settings$legend_position,
       group = "Choropleth",
@@ -1077,9 +1120,11 @@ add_parent_borders <- function(map, geo_data, current_level, boundaries) {
 
   for (i in lower_levels) {
     stroke_width <- (current_level - i) + 1
-    borders <- suppressMessages(sf::st_filter(geo_data[[i]]$sf, boundaries)) %>%
-      dplyr::filter(sf::st_is(geometry, c("POLYGON", "MULTIPOLYGON")))
-
+    borders <- suppressMessages(sf::st_filter(geo_data[[i]]$sf, boundaries))
+    borders <- dplyr::filter(
+      borders,
+      sf::st_is(sf::st_geometry(borders), c("POLYGON", "MULTIPOLYGON"))
+    )
     if (nrow(borders) > 0) {
       map <- map %>%
         leaflet::addPolylines(
@@ -1091,7 +1136,6 @@ add_parent_borders <- function(map, geo_data, current_level, boundaries) {
         )
     }
   }
-
   map
 }
 
@@ -1239,7 +1283,7 @@ get_map_circle_df <- function(
     df <- df_geo_counts %>%
       dplyr::select(-dplyr::any_of(n_lab)) %>%
       dplyr::left_join(
-        df %>% tidyr::pivot_wider(names_from = group_var, values_from = "n"),
+        df %>% tidyr::pivot_wider(names_from = dplyr::all_of(group_var), values_from = n),
         by = geo_join
       ) %>%
       dplyr::mutate(dplyr::across(dplyr::where(is.numeric), as.double)) %>%
@@ -1416,4 +1460,182 @@ getCallEntryFromMap <- function(map, call) {
     fixed <- TRUE
   }
   grep(call, getCallMethods(map), fixed = fixed, useBytes = TRUE)
+}
+
+# =============================================================================
+# PLACE MODULE HELPER FUNCTIONS
+# =============================================================================
+
+#' Get choropleth color palette names
+#' @noRd
+choro_pals <- function() {
+  list(
+    `ColorBrewer Diverging` = c(
+      "BrBG",
+      "PiYG",
+      "PRGn",
+      "PuOr",
+      "RdBu",
+      "RdGy",
+      "RdYlBu",
+      "RdYlGn",
+      "Spectral"
+    ),
+    `ColorBrewer Sequential` = c(
+      "Blues",
+      "BuGn",
+      "BuPu",
+      "GnBu",
+      "Greens",
+      "Greys",
+      "Oranges",
+      "OrRd",
+      "PuBu",
+      "PuBuGn",
+      "PuRd",
+      "Purples",
+      "RdPu",
+      "Reds",
+      "YlGn",
+      "YlGnBu",
+      "YlOrBr",
+      "YlOrRd"
+    ),
+    Viridis = c(
+      "magma",
+      "inferno",
+      "plasma",
+      "viridis",
+      "cividis",
+      "rocket",
+      "mako",
+      "turbo"
+    )
+  )
+}
+
+#' Get choropleth break methods
+#' @noRd
+choro_breaks <- function() {
+  c(
+    "fixed",
+    "sd",
+    "equal",
+    "pretty",
+    "quantile",
+    "kmeans",
+    "hclust",
+    "bclust",
+    "fisher",
+    "jenks",
+    "dpih",
+    "q6",
+    "Q6",
+    "geom",
+    "arith",
+    "em",
+    "msd",
+    "ckmeans"
+  )
+}
+
+#' Create leaflet basemap with standard layers
+#' @noRd
+leaf_basemap <- function(
+  bbox,
+  baseGroups = c("CartoDB", "OSM", "OSM.HOT", "Esri"),
+  overlayGroups = character(0),
+  miniMap = TRUE
+) {
+  lf <- leaflet::leaflet() %>%
+    leaflet::fitBounds(bbox[["xmin"]], bbox[["ymin"]], bbox[["xmax"]], bbox[["ymax"]]) %>%
+    leaflet::addMapPane(name = "choropleth", zIndex = 310) %>%
+    leaflet::addMapPane(name = "place_labels", zIndex = 320) %>%
+    leaflet::addMapPane(name = "circles", zIndex = 410) %>%
+    leaflet::addMapPane(name = "boundaries", zIndex = 420) %>%
+    leaflet::addMapPane(name = "geo_highlight", zIndex = 430) %>%
+    leaflet::addProviderTiles("CartoDB.PositronNoLabels", group = "CartoDB") %>%
+    leaflet::addProviderTiles(
+      "CartoDB.PositronOnlyLabels",
+      group = "CartoDB",
+      options = leaflet::leafletOptions(pane = "place_labels")
+    ) %>%
+    leaflet::addProviderTiles("OpenStreetMap", group = "OSM") %>%
+    leaflet::addProviderTiles("OpenStreetMap.HOT", group = "OSM.HOT") %>%
+    leaflet::addProviderTiles("Esri.WorldGrayCanvas", group = "Esri") %>%
+    leaflet::addScaleBar(
+      position = "bottomright",
+      options = leaflet::scaleBarOptions(imperial = FALSE)
+    ) %>%
+    leaflet::addLayersControl(
+      baseGroups = baseGroups,
+      overlayGroups = overlayGroups,
+      position = "topleft"
+    )
+
+  if (miniMap) {
+    lf <- lf %>% leaflet::addMiniMap(toggleDisplay = TRUE, position = "bottomleft")
+  }
+
+  return(lf)
+}
+
+#' Generate HTML Tooltip for Leaflet
+#'
+#' This function creates an HTML tooltip for leaflet maps.
+#' The tooltip displays information about the name, number of patients, population,
+#' and attack rate, if available.
+#'
+#' @param df A data frame containing the data.
+#' @param name_col A string specifying the column name for the names (default is "name").
+#' @param n_col A string specifying the column name for the counts (default is "total").
+#' @param n_lab A string specifying the label for the counts (default is "N patients").
+#' @param pop_col A string specifying the column name for the population (default is NULL).
+#' @param pop_lab A string specifying the label for the population (default is "Population").
+#' @param ar_col A string specifying the column name for the attack rate (default is NULL).
+#' @param ar_lab A string specifying the label for the attack rate (default is "Attack rate").
+#'
+#' @return A list of HTML elements to be used as tooltips in a leaflet map.
+#' @importFrom scales number
+#' @importFrom glue glue
+#' @importFrom purrr map
+#' @importFrom shiny HTML
+#' @noRd
+#'
+#' @examples
+#' df <- data.frame(
+#'   name = c("Location A", "Location B"),
+#'   total = c(100, NA),
+#'   population = c(1000, 2000),
+#'   attack_rate = c(10, NA)
+#' )
+#' make_leaf_tooltip(df, pop_col = "population", ar_col = "attack_rate")
+make_leaf_tooltip <- function(
+  df,
+  name_col = "name",
+  n_col = "total",
+  n_lab = "N patients",
+  pop_col = NULL,
+  pop_lab = "Population",
+  ar_col = NULL,
+  ar_lab = "Attack rate"
+) {
+  counts <- ifelse(is.na(df[[n_col]]), "No data", scales::number(df[[n_col]], accuracy = 1))
+  if (all(!is.null(pop_col), !is.null(ar_col))) {
+    pop <- ifelse(is.na(df[[pop_col]]), "No data", scales::number(df[[pop_col]], accuracy = 1))
+    ar <- ifelse(is.na(df[[ar_col]]), "No data", scales::number(df[[ar_col]], accuracy = .1))
+    glue::glue(
+      "<b>{df[[name_col]]}</b><br>
+       {n_lab}: <b>{counts}</b><br>
+       {pop_lab}: <b>{pop}</b><br>
+       {ar_lab}: <b>{ar}</b> / 100 000<br>"
+    ) %>%
+      purrr::map(shiny::HTML)
+  } else {
+    glue::glue(
+      "<b>{df[[name_col]]}</b><br>
+       {n_lab}: <b>{counts}</b><br>"
+    ) %>%
+      purrr::map(shiny::HTML)
+  }
 }

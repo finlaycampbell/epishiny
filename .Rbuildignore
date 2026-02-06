@@ -9,3 +9,4 @@
 ^\.github$
 ^vignettes/articles$
 ^CLAUDE\.md$
+^\.claude$

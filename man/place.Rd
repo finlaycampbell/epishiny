@@ -20,7 +20,11 @@ place_ui(
   circle_size_lab = "Circle size multiplyer",
   opts_btn_lab = "Map options",
   download_lab = "Download image of current map",
-  full_screen = TRUE
+  choro_pal_default = "Reds",
+  full_screen = TRUE,
+  use_sidebar = TRUE,
+  sidebar_title = NULL,
+  sidebar_width = 250
 )
 
 place_server(
@@ -30,8 +34,7 @@ place_server(
   count_vars = NULL,
   group_vars = NULL,
   show_parent_borders = FALSE,
-  choro_lab = "Rate /100 000",
-  choro_pal = "OrRd",
+  choro_lab_rate = "Attack Rate /100 000",
   choro_opacity = 0.7,
   export_width = 1200,
   export_height = 650,
@@ -72,35 +75,40 @@ If named, names are used as variable labels.}
 
 \item{download_lab}{text label for the download button.}
 
+\item{choro_pal_default}{RColorBrewer or viridis palette name to be used as the default option of the choropleth layer palette input.}
+
 \item{full_screen}{Add button to card to with the option to enter full screen mode?}
+
+\item{use_sidebar}{Logical. If TRUE, displays options in a sidebar instead of popover button. Default TRUE.}
+
+\item{sidebar_title}{String. Title for the sidebar. Only used if use_sidebar = TRUE. Default "Map options".}
+
+\item{sidebar_width}{Numeric. Width of sidebar in pixels. Only used if use_sidebar = TRUE. Default 280.}
 
 \item{df}{Data frame or tibble of patient level or aggregated data. Can be either a shiny reactive or static dataset.}
 
 \item{show_parent_borders}{Show borders of parent boundary levels?}
 
-\item{choro_lab}{Label for attack rate choropleth (only applicable if \code{geo_data} contains population data)}
+\item{choro_lab_rate}{Label for attack rate choropleth (only used if \code{geo_data} contains population data).}
 
-\item{choro_pal}{Colour palette passed to \code{\link[leaflet:colorNumeric]{leaflet::colorBin()}} for attack rate choropleth
-(only applicable if \code{geo_data} contains population data). See details of \code{\link[leaflet:colorNumeric]{leaflet::colorBin()}}
-for all palette options.}
-
-\item{choro_opacity}{Opacity of choropleth colour (only applicable if \code{geo_data} contains population data)}
+\item{choro_opacity}{Opacity of choropleth colour.}
 
 \item{export_width}{The width of the exported map image.}
 
 \item{export_height}{The height of the exported map image.}
 
-\item{time_filter}{supply the output of \code{\link[=time_server]{time_server()}} wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} here to filter
-the data by click events on the time module bar chart (clicking a bar will filter the data to the period the bar represents)}
+\item{time_filter}{supply the output of \code{\link[=time_server]{time_server()}} here to filter
+the data by click events on the time module bar chart (clicking a bar
+will filter the data to the period the bar represents)}
 
 \item{filter_info}{If contained within an app using \code{\link[=filter_server]{filter_server()}}, supply the \code{filter_info} object
-returned by that function here wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} to add filter information to chart exports.}
+returned by that function here to add filter information to chart exports.}
 
 \item{filter_reset}{If contained within an app using \code{\link[=filter_server]{filter_server()}}, supply the \code{filter_reset} object
-returned by that function here wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} to reset any click event filters that have been set from by module.}
+returned by that function here to reset any click event filters that have been set from by module.}
 }
 \value{
-A \link[bslib:card]{bslib::card} UI element with options and download button and a leaflet map.
+A \link[bslib:card]{bslib::card} UI element with options (in popover or sidebar) and a leaflet map.
 
 The server function returns the leaflet map's shape click information as a list.
 }
@@ -113,45 +121,42 @@ library(bslib)
 library(epishiny)
 
 # example package data
-data("df_ll") # linelist
-data("sf_yem") # sf geo boundaries for Yemen admin 1 & 2
+data("df_ll_ebola") # linelist
+data("sf_sle") # sf geo boundaries for Sierra Leone admin 3 & 4
 
-# setup geo data for adm1 and adm2 using the
+# setup geo data for admin 3 and admin 4 using the
 # geo_layer function to be passed to the place module
 # if population variable is provided, attack rates
 # will be shown on the map as a choropleth
 geo_data <- list(
   geo_layer(
-    layer_name = "Governorate", # name of the boundary level
-    sf = sf_yem$adm1, # sf object with boundary polygons
-    name_var = "adm1_name", # column with place names
-    pop_var = "adm1_pop", # column with population data (optional)
-    join_by = c("pcode" = "adm1_pcode") # geo to data join vars: LHS = sf, RHS = data
+    layer_name = "Admin 3", # name of the boundary level
+    sf = sf_sle$adm3, # sf object with boundary polygons
+    name_var = "adm3_name", # column with place names
+    pop_var = "adm3_pop", # column with population data (optional)
+    join_by = c("pcode" = "adm3_pcode") # geo to data join vars: LHS = sf, RHS = data
   ),
   geo_layer(
-    layer_name = "District",
-    sf = sf_yem$adm2,
-    name_var = "adm2_name",
-    pop_var = "adm2_pop",
-    join_by = c("pcode" = "adm2_pcode")
+    layer_name = "Admin 4",
+    sf = sf_sle$adm4,
+    name_var = "adm4_name",
+    join_by = c("pcode" = "adm4_pcode")
   )
 )
 
 # define date variables in data as named list to be used in app
 date_vars <- c(
-  "Date of notification" = "date_notification",
-  "Date of onset" = "date_symptom_start",
-  "Date of hospitalisation" = "date_hospitalisation_start",
-  "Date of outcome" = "date_hospitalisation_end"
+  "Date of onset" = "date_of_onset",
+  "Date of hospitalisation" = "date_of_hospitalisation",
+  "Date of infection" = "date_of_infection",
+  "Date of outcome" = "date_of_outcome"
 )
 
 # define categorical grouping variables
 # in data as named list to be used in app
 group_vars <- c(
-  "Governorate" = "adm1_origin",
-  "Sex" = "sex_id",
-  "Hospitalised" = "hospitalised_yn",
-  "Vaccinated measles" = "vacci_measles_yn",
+  "Hospital" = "hospital",
+  "Gender" = "gender",
   "Outcome" = "outcome"
 )
 
@@ -187,37 +192,37 @@ ui <- page_sidebar(
 server <- function(input, output, session) {
   app_data <- filter_server(
     id = "filter",
-    df = df_ll,
+    df = df_ll_ebola,
     date_vars = date_vars,
     group_vars = group_vars
   )
   place_server(
     id = "map",
-    df = reactive(app_data()$df),
+    df = app_data$df,
     geo_data = geo_data,
     group_vars = group_vars,
-    filter_info = reactive(app_data()$filter_info)
+    filter_info = app_data$filter_info
   )
   time_server(
     id = "curve",
-    df = reactive(app_data()$df),
+    df = app_data$df,
     date_vars = date_vars,
     group_vars = group_vars,
     show_ratio = TRUE,
     ratio_var = "outcome",
     ratio_lab = "CFR",
-    ratio_numer = "Deceased",
-    ratio_denom = c("Deceased", "Healed", "Abandonment"),
-    filter_info = reactive(app_data()$filter_info)
+    ratio_numer = "Death",
+    ratio_denom = c("Death", "Recover"),
+    filter_info = app_data$filter_info
   )
   person_server(
     id = "age_sex",
-    df = reactive(app_data()$df),
-    age_var = "age_years",
-    sex_var = "sex_id",
-    male_level = "Male",
-    female_level = "Female",
-    filter_info = reactive(app_data()$filter_info)
+    df = app_data$df,
+    age_var = "age",
+    sex_var = "gender",
+    male_level = "m",
+    female_level = "f",
+    filter_info = app_data$filter_info
   )
 }
 

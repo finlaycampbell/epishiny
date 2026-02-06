@@ -24,7 +24,10 @@ time_ui(
   cumul_data_lab = "Show cumulative data?",
   ratio_line_lab = "Show ratio line?",
   zoom_control_lab = "Add zoom control slider?",
-  full_screen = TRUE
+  full_screen = TRUE,
+  use_sidebar = TRUE,
+  sidebar_title = NULL,
+  sidebar_width = 250
 )
 
 time_server(
@@ -89,6 +92,12 @@ argument of \link[lubridate:round_date]{lubridate::floor_date}. If named, names 
 
 \item{full_screen}{Add button to card to with the option to enter full screen mode?}
 
+\item{use_sidebar}{Logical. If TRUE, displays options in a sidebar instead of popover button. Default TRUE.}
+
+\item{sidebar_title}{String. Title for the sidebar. Only used if use_sidebar = TRUE. Default "Chart options".}
+
+\item{sidebar_width}{Numeric. Width of sidebar in pixels. Only used if use_sidebar = TRUE. Default 250.}
+
 \item{df}{Data frame or tibble of patient level or aggregated data. Can be either a shiny reactive or static dataset.}
 
 \item{show_ratio}{Display a ratio line on the epicurve?}
@@ -107,14 +116,15 @@ For aggregated data, character string of numeric count column to use of ratio de
 
 \item{na_colour}{Colour used for missing data.}
 
-\item{place_filter}{supply the output of \code{\link[=place_server]{place_server()}} wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} here to filter
-the data by click events on the place module map (clicking a polygon will filter the data to the clicked region)}
+\item{place_filter}{supply the output of \code{\link[=place_server]{place_server()}} here to filter
+the data by click events on the place module map (clicking a polygon
+will filter the data to the clicked region)}
 
 \item{filter_info}{If contained within an app using \code{\link[=filter_server]{filter_server()}}, supply the \code{filter_info} object
-returned by that function here wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} to add filter information to chart exports.}
+returned by that function here to add filter information to chart exports.}
 
 \item{filter_reset}{If contained within an app using \code{\link[=filter_server]{filter_server()}}, supply the \code{filter_reset} object
-returned by that function here wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} to reset any click event filters that have been set from by module.}
+returned by that function here to reset any click event filters that have been set from by module.}
 }
 \value{
 the module server function returns any point click event data of the highchart.

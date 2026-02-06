@@ -41,15 +41,22 @@ Imports:
     leaflet.minicharts,
     chromote,
     webshot2,
-    mapsf,
-    grDevices
+    grDevices,
+    htmltools,
+    classInt
 Depends: 
     R (>= 4.1.0)
 URL: https://github.com/epicentre-msf/epishiny, https://epicentre-msf.github.io/epishiny/
 BugReports: https://github.com/epicentre-msf/epishiny/issues
-Suggests: 
+Suggests:
     knitr,
     rmarkdown,
     rnaturalearth,
-    readr
+    readr,
+    testthat (>= 3.0.0),
+    shinytest2,
+    withr,
+    mockery,
+    covr
 VignetteBuilder: knitr
+Config/testthat/edition: 3

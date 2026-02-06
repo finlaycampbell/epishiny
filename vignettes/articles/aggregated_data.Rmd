@@ -87,7 +87,7 @@ launch_module(
 
 ```{r place-module, eval=FALSE}
 # filter to data in ongoing year for more relevant attack rate estimates
-map_data_filter <- df_who_covid %>% 
+map_data_filter <- df_who_covid %>%
   filter(between(Date_reported, as.Date("2023-01-01"), as.Date("2023-12-31")))
 
 launch_module(

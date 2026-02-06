@@ -1,0 +1,7 @@
+.dropdown-menu {
+    z-index: 1000 !important;
+} 
+
+.bslib-nav-item {
+    margin: 0 !important;
+}

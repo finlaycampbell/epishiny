@@ -192,8 +192,8 @@ server <- function(input, output, session) {
     df = df_ll_measles,
     date_vars = date_vars,
     group_vars = group_vars,
-    time_filter = reactive(bar_click()),
-    place_filter = reactive(map_click())
+    time_filter = bar_click,
+    place_filter = map_click
   )
 
   observe({
@@ -207,18 +207,18 @@ server <- function(input, output, session) {
 
   map_click <- place_server(
     id = "place",
-    df = reactive(app_data()$df),
+    df = app_data$df,
     geo_data = geo_data,
     group_vars = group_vars,
     choro_lab = "Attack rate</br>/100 000",
     choro_pal = hrbrthemes::flexoki_extended$red[1:10],
     show_parent_borders = TRUE,
-    time_filter = reactive(bar_click())
-    # filter_info = reactive(app_data()$filter_info)
+    time_filter = bar_click
+    # filter_info = app_data$filter_info
   )
   bar_click <- time_server(
     id = "time",
-    df = reactive(app_data()$df),
+    df = app_data$df,
     date_vars = date_vars,
     group_vars = group_vars,
     show_ratio = TRUE,
@@ -226,21 +226,21 @@ server <- function(input, output, session) {
     ratio_lab = "CFR",
     ratio_numer = "dead",
     ratio_denom = c("dead", "recovered", "left against medical advice"),
-    place_filter = reactive(map_click())
-    # filter_info = reactive(app_data()$filter_info)
+    place_filter = map_click
+    # filter_info = app_data$filter_info
   )
   person_server(
     id = "person",
-    df = reactive(app_data()$df),
+    df = app_data$df,
     age_group_var = "age_group",
     # age_var = "age",
     # age_breaks = c(seq(0, 50, by = 5), Inf), # 5 year intervals
     sex_var = "sex",
     male_level = "m",
     female_level = "f",
-    time_filter = reactive(bar_click()),
-    place_filter = reactive(map_click())
-    # filter_info = reactive(app_data()$filter_info)
+    time_filter = bar_click,
+    place_filter = map_click
+    # filter_info = app_data$filter_info
   )
 }
 

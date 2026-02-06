@@ -55,23 +55,22 @@ update_imgs <- FALSE
 
 ## Demo Dashboard
 
-Launch a demo dashboard with examples of every epishiny module with the `launch_demo_dashboard()` function.
-The code for the example dashboards can be found in [inst/examples/](https://github.com/epicentre-msf/epishiny/tree/main/inst/examples/)
-of the package repository.
+Launch a demo dashboard to see what `epishiny` can do:
+
+```{r eval=FALSE}
+library(epishiny)
+launch_demo_dashboard("ebola")
+```
 
 ```{r include=FALSE}
 if (update_imgs) {
   require("shinytest2")
   pkgload::load_all()
-
   app_path <- here::here("inst/examples/ebola-linelist-dash")
-
   app <- AppDriver$new(app_path, width = 1600, height = 900)
-
   img_path <- tempfile(fileext = ".png")
   app$get_screenshot(file = img_path, delay = 1)
   fs::file_copy(img_path, "man/figures/dashboard.png", overwrite = TRUE)
-
   app$stop()
 }
 ```
@@ -80,18 +79,21 @@ if (update_imgs) {
 knitr::include_graphics("man/figures/dashboard.png")
 ```
 
-## Tutorials
+The code for the example dashboards can be found in [inst/examples/](https://github.com/epicentre-msf/epishiny/tree/main/inst/examples/)
+of the package repository.
 
-See the articles below on the package website to get started using `epishiny` with your data.
+## Learn More
 
-* [Getting started](https://epicentre-msf.github.io/epishiny/articles/epishiny.html) 
-* Use cases
-  - [Linelist data](https://epicentre-msf.github.io/epishiny/articles/linelist_data.html) 
-  - [Aggregated data](https://epicentre-msf.github.io/epishiny/articles/aggregated_data.html) 
+See the articles below on the package website to get started using `epishiny` with your data:
+
+* [Getting started](https://epicentre-msf.github.io/epishiny/articles/epishiny.html) - Build fully-featured dashboards in just a few lines of code with `epi_dashboard()` and explore individual modules
+* Use cases:
+  - [Linelist data](https://epicentre-msf.github.io/epishiny/articles/linelist_data.html)
+  - [Aggregated data](https://epicentre-msf.github.io/epishiny/articles/aggregated_data.html)
 
 ## Contributions
 
-Contributions are welcome. See the [contributing article](https://epicentre-msf.github.io/epishiny/articles/contributing.html) 
+Contributions are welcome. See the [contributing article](https://epicentre-msf.github.io/epishiny/articles/contributing.html)
 on the package website for details on how to contribute to `epishiny`.
 
 ```{r include=FALSE}

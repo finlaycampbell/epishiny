@@ -1,8 +1,13 @@
+# =============================================================================
+# CROSS-MODULE UTILITY FUNCTIONS
+# Functions used by multiple modules across the package
+# =============================================================================
+
 #' @noRd
 use_epishiny <- function() {
   header <- shiny::tags$head(
-    tags$script(src = "epishiny/js/weekNumber.js"),
-    tags$style(".dropdown-menu {z-index: 1000 !important;} .bslib-nav-item {margin: 0 !important;}"),
+    tags$script(src = "epishiny/js/main.js"),
+    tags$link(rel = "stylesheet", type = "text/css", href = "epishiny/css/styles.css"),
     shinyjs::useShinyjs(),
     waiter::useWaiter()
   )
@@ -40,23 +45,6 @@ force_reactive <- function(x) {
   }
 }
 
-#' Filter vector based on value membership
-#'
-#' @description
-#' Creates a logical vector indicating which elements of x are in val
-#'
-#' @param x Vector to filter
-#' @param val Values to match against
-#' @return Logical vector indicating membership
-#' @noRd
-filter_var <- function(x, val) {
-  if (length(val)) {
-    x %in% val
-  } else {
-    TRUE
-  }
-}
-
 #' Generate timestamp string
 #'
 #' @description
@@ -68,7 +56,7 @@ time_stamp <- function() {
   format(Sys.time(), "%Y-%m-%d_%H%M%S")
 }
 
-#' Generate epidemiological color palettes
+#' Generate color palettes
 #'
 #' @description
 #' Returns a list containing predefined color palettes for epidemiological visualizations
@@ -168,317 +156,85 @@ epi_pals <- function() {
   x
 }
 
-prepare_palette <- function(
-  n,
-  missing_data = FALSE,
-  na_colour = "#666666",
-  pal = epi_pals()$aurora,
-  alpha = 0.8
-) {
-  if (!length(pal)) {
-    pal <- epi_pals()$aurora
-  }
-  n_pal <- length(pal)
-  n_non_na <- ifelse(missing_data, n - 1, n)
-  pal <- if (n_non_na > n_pal && n_non_na < 10) {
-    grDevices::colorRampPalette(epi_pals()$aurora)(n_non_na)
-  } else if (n_non_na > n_pal) {
-    epi_pals()$pal20
+#' Get Label for Selected Choice
+#'
+#' This function retrieves the label for a selected choice from a list of choices.
+#'
+#' @param selected The selected choice for which the label is to be retrieved.
+#' @param choices A named vector of choices from which the label is to be retrieved.
+#' @param .default The default label to be used if the selected choice is not found in the choices. Defaults to the value of the "epishiny.count.label" option, or "N" if the option is not set.
+#'
+#' @return The label corresponding to the selected choice if found in the choices, otherwise the default label.
+#'
+#' @examples
+#' choices <- c(a = "apple", b = "banana", c = "cherry")
+#' get_label("b", choices) # Returns "banana"
+#' get_label("d", choices) # Returns "N" (default)
+#'
+#' @noRd
+get_label <- function(selected, choices, .default = getOption("epishiny.count.label", "N")) {
+  if (length(choices)) {
+    lab <- choices[choices == selected]
+    ifelse(rlang::is_named(lab), names(lab), lab)
   } else {
-    pal
+    .default
   }
-  if (missing_data) {
-    pal[n] <- na_colour
-  }
-  scales::alpha(pal, alpha)
 }
 
+#' Format filter information text
+#'
+#' @description
+#' Combines filter information from time, place, and filter modules into formatted HTML
+#'
+#' @param fi Existing filter info text
+#' @param tf Time filter information (list with $lab)
+#' @param pf Place filter information (list with $level_name, $region_name)
+#'
+#' @return HTML formatted filter information string
 #' @noRd
-choro_pals <- function() {
-  list(
-    diverging = c(
-      "BrBG",
-      "PiYG",
-      "PRGn",
-      "PuOr",
-      "RdBu",
-      "RdGy",
-      "RdYlBu",
-      "RdYlGn",
-      "Spectral"
-    ),
-    sequential = c(
-      "Blues",
-      "BuGn",
-      "BuPu",
-      "GnBu",
-      "Greens",
-      "Greys",
-      "Oranges",
-      "OrRd",
-      "PuBu",
-      "PuBuGn",
-      "PuRd",
-      "Purples",
-      "RdPu",
-      "Reds",
-      "YlGn",
-      "YlGnBu",
-      "YlOrBr",
-      "YlOrRd"
-    ),
-    viridis = c(
-      "viridis",
-      "magma",
-      "inferno",
-      "plasma"
-    )
-  )
-}
-
-#' @noRd
-choro_breaks <- function() {
-  c(
-    "fixed",
-    "sd",
-    "equal",
-    "pretty",
-    "quantile",
-    "kmeans",
-    "hclust",
-    "bclust",
-    "fisher",
-    "jenks",
-    "dpih",
-    "q6",
-    "Q6",
-    "geom",
-    "arith",
-    "em",
-    "msd",
-    "ckmeans"
-  )
-}
-
-#' @noRd
-setup_group_filter <- function(var, lab, ns, ...) {
-  if (is.null(lab)) {
-    lab <- var
-  }
-  # shinyWidgets::pickerInput(
-  #   inputId = ns(var),
-  #   label = lab,
-  #   choices = NULL,
-  #   selected = NULL,
-  #   options = picker_opts(...),
-  #   multiple = TRUE
-  # )
-  shiny::selectizeInput(
-    inputId = ns(var),
-    label = lab,
-    choices = NULL,
-    selected = NULL,
-    multiple = TRUE,
-    options = list(placeholder = "All", plugins = "remove_button")
-  )
-}
-
-#' @noRd
-update_group_filter <- function(session, var, df) {
-  vec <- df[[var]]
-  if (is.factor(vec)) {
-    choices <- levels(droplevels(vec))
-  } else if (is.character(vec)) {
-    choices <- sort(unique(vec))
-  } else {
-    stop("Grouping variables must be factor or character class")
-  }
-  # shinyWidgets::updatePickerInput(session, var, choices = choices)
-  shiny::updateSelectizeInput(session, var, choices = choices)
-}
-
-#' @noRd
-setup_date_filter <- function(var, lab, ns, single_date = FALSE, ...) {
-  if (is.null(lab)) {
-    lab <- var
-  }
-
-  if (single_date) {
-    # Single date variable: show date input without toggle
-    div(
-      dateRangeInput(
-        inputId = ns(var),
-        label = lab,
-        min = NULL,
-        max = NULL,
-        start = NULL,
-        end = NULL,
-        weekstart = getOption("epishiny.week.start", 1),
-        format = "d/m/yy"
-      ),
-      # Quick select buttons as button group
-      helpText("Quick select:"),
-      div(
-        class = "btn-group w-100",
-        role = "group",
-        style = "margin-top: 10px;",
-        actionButton(
-          ns(paste0(var, "_30days")),
-          "30d",
-          class = "btn-sm btn-light",
-          style = "flex: 1;"
-        ),
-        actionButton(
-          ns(paste0(var, "_3months")),
-          "3m",
-          class = "btn-sm btn-light",
-          style = "flex: 1;"
-        ),
-        actionButton(
-          ns(paste0(var, "_ytd")),
-          "YTD",
-          class = "btn-sm btn-light",
-          style = "flex: 1;"
-        ),
-        actionButton(
-          ns(paste0(var, "_full")),
-          "All",
-          class = "btn-sm btn-light",
-          style = "flex: 1;"
-        )
+format_filter_info <- function(fi = NULL, tf = NULL, pf = NULL) {
+  if (length(tf)) {
+    if (length(fi)) {
+      # since we already have a period filter value from the date input, replace it with bar click period
+      fi <- stringr::str_replace(
+        fi,
+        "\\d{2}/[A-Za-z]{3}/\\d{2} - \\d{2}/[A-Za-z]{3}/\\d{2}",
+        tf$lab
       )
-    )
-  } else {
-    # Multiple date variables: show toggle switch
-    div(
-      # Enable/disable switch (OFF by default)
-      div(
-        style = "padding-bottom: 0;",
-        bslib::input_switch(
-          id = ns(paste0(var, "_enabled")),
-          label = lab,
-          value = FALSE
-        )
-      ),
-      # Date range input (shown only when enabled)
-      shiny::conditionalPanel(
-        condition = sprintf("input['%s']", paste0(var, "_enabled")),
-        ns = ns,
-        dateRangeInput(
-          inputId = ns(var),
-          label = NULL,
-          min = NULL,
-          max = NULL,
-          start = NULL,
-          end = NULL,
-          weekstart = getOption("epishiny.week.start", 1),
-          format = "d/m/yy"
-        )
-      )
-    )
+    } else {
+      fi <- paste("<b>Filters applied</b></br>Period:", tf$lab)
+    }
   }
-}
-
-#' @noRd
-update_date_filter <- function(session, var, df) {
-  vec <- df[[var]]
-  if (lubridate::is.Date(vec) || lubridate::is.POSIXt(vec)) {
-    date_range <- range(vec, na.rm = TRUE)
-    shiny::updateDateRangeInput(
-      session,
-      var,
-      min = date_range[1],
-      max = date_range[2],
-      start = date_range[1],
-      end = date_range[2]
-    )
-  } else {
-    warning(sprintf("Date variable '%s' is not a Date or POSIXt class", var))
+  if (length(pf)) {
+    pf_lab <- glue::glue("{pf$level_name}: {pf$region_name}")
+    if (length(fi)) {
+      fi <- glue::glue("{fi}</br>{pf_lab}")
+    } else {
+      fi <- paste0("<b>Filters applied</b></br>", pf_lab)
+    }
   }
+  fi
 }
 
-#' @noRd
-make_select_filter <- function(var, lab, ns, df, ...) {
-  vec <- df[[var]]
-  if (is.factor(vec)) {
-    choices <- levels(vec)
-  } else if (is.character(vec)) {
-    choices <- sort(unique(vec))
-  } else {
-    stop("Grouping variables must be factor or character class")
-  }
-  shinyWidgets::pickerInput(
-    inputId = ns(var),
-    label = lab,
-    choices = choices,
-    selected = NULL,
-    options = picker_opts(...),
-    multiple = TRUE
-  )
-}
-
-#' @noRd
-picker_opts <- function(actions = TRUE, search = FALSE, none_text = "All", selected_text = "selected", container = "body", ...) {
-  shinyWidgets::pickerOptions(
-    actionsBox = actions,
-    liveSearch = search,
-    selectedTextFormat = "count > 1",
-    countSelectedText = paste("{0}", selected_text),
-    noneSelectedText = none_text,
-    container = container,
-    ...
-  )
-}
-
-#' Format break labels
+#' Configure highchart export options
 #'
-#' @param breaks numeric vector of breaks
-#' @param lab_accuracy accuracy of labels, passed to [`scales::number`]
-#' @param replace_Inf if `Inf` is your final break, replace with a + sign in the label?
+#' @description
+#' Configures highchart export menu with custom options for download buttons,
+#' file naming, and chart appearance. Used by time and person modules.
 #'
-#' @noRd
-label_breaks <- function(breaks, lab_accuracy = .1, replace_Inf = TRUE) {
-  labs <- sprintf(
-    "%s-%s",
-    frmt_num(breaks[1:length(breaks) - 1], accuracy = lab_accuracy),
-    frmt_num(breaks[2:length(breaks)] - 1, accuracy = lab_accuracy)
-  )
-  if (replace_Inf) {
-    labs <- gsub("-Inf", "+", labs)
-  }
-  return(labs)
-}
-
-#' Format numbers with scale units when large
+#' @param hc A highchart object
+#' @param title Chart title
+#' @param subtitle Chart subtitle
+#' @param credits Chart credits text
+#' @param caption Chart caption
+#' @param colors Chart colors
+#' @param width Export width in pixels
+#' @param height Export height in pixels
+#' @param dl_buttons Vector of download button types
+#' @param dl_text Download button text
+#' @param filename Base filename for exports (timestamp will be appended)
 #'
-#' @param x a number to format
-#' @param accuracy accuracy of labels, passed to [`scales::number`]
-#'
-#' @noRd
-frmt_num <- function(x, accuracy = .1) {
-  n <- scales::number(x, accuracy = accuracy, scale_cut = scales::cut_short_scale())
-  n <- stringr::str_remove(n, "\\.0+(?=[a-zA-Z])")
-  n <- stringr::str_remove(n, "\\.0+$")
-  n
-}
-
-#' @noRd
-hc_week_labels <- function(week_letter = getOption("epishiny.week.letter", "W")) {
-  highcharter::JS(
-    glue::glue(
-      "function () {
-         var date = new Date(this.value);
-         var year = date.getWeekYear();
-         var week = date.getWeek();
-         return year + '-{{week_letter}}' + week;
-     }",
-      .open = "{{",
-      .close = "}}"
-    )
-  )
-}
-
-
+#' @return Modified highchart object with export configuration
 #' @noRd
 my_hc_export <- function(
   hc,
@@ -518,7 +274,7 @@ my_hc_export <- function(
     enabled = TRUE,
     sourceWidth = width,
     sourceHeight = height,
-    buttons = list(contextButton = list(menuItems = dl_buttons, text = dl_text)),
+    buttons = list(contextButton = list(align = "right", menuItems = dl_buttons, text = dl_text)),
     filename = paste0(filename, time_stamp()),
     csv = list(dateFormat = "%d/%m/%Y"),
     tableCaption = "",
@@ -538,154 +294,4 @@ my_hc_export <- function(
       chart = list(backgroundColor = "#fff")
     )
   )
-}
-
-#' @noRd
-leaf_basemap <- function(
-  bbox,
-  baseGroups = c("CartoDB", "OSM", "OSM.HOT", "Esri"),
-  overlayGroups = character(0),
-  miniMap = TRUE
-) {
-  lf <- leaflet::leaflet() %>%
-    leaflet::fitBounds(bbox[["xmin"]], bbox[["ymin"]], bbox[["xmax"]], bbox[["ymax"]]) %>%
-    leaflet::addMapPane(name = "choropleth", zIndex = 310) %>%
-    leaflet::addMapPane(name = "place_labels", zIndex = 320) %>%
-    leaflet::addMapPane(name = "circles", zIndex = 410) %>%
-    leaflet::addMapPane(name = "boundaries", zIndex = 420) %>%
-    leaflet::addMapPane(name = "geo_highlight", zIndex = 430) %>%
-    leaflet::addProviderTiles("CartoDB.PositronNoLabels", group = "CartoDB") %>%
-    leaflet::addProviderTiles(
-      "CartoDB.PositronOnlyLabels",
-      group = "CartoDB",
-      options = leaflet::leafletOptions(pane = "place_labels")
-    ) %>%
-    leaflet::addProviderTiles("OpenStreetMap", group = "OSM") %>%
-    leaflet::addProviderTiles("OpenStreetMap.HOT", group = "OSM.HOT") %>%
-    leaflet::addProviderTiles("Esri.WorldGrayCanvas", group = "Esri") %>%
-    leaflet::addScaleBar(
-      position = "bottomright",
-      options = leaflet::scaleBarOptions(imperial = FALSE)
-    ) %>%
-    leaflet::addLayersControl(
-      baseGroups = baseGroups,
-      overlayGroups = overlayGroups,
-      position = "topleft"
-    )
-
-  if (miniMap) {
-    lf <- lf %>% leaflet::addMiniMap(toggleDisplay = TRUE, position = "bottomleft")
-  }
-
-  return(lf)
-}
-
-#' Generate HTML Tooltip for Leaf Nodes
-#'
-#' This function creates an HTML tooltip for leaf nodes in a Shiny application.
-#' The tooltip displays information about the name, number of patients, population,
-#' and attack rate, if available.
-#'
-#' @param df A data frame containing the data.
-#' @param name_col A string specifying the column name for the names (default is "name").
-#' @param n_col A string specifying the column name for the counts (default is "total").
-#' @param n_lab A string specifying the label for the counts (default is "N patients").
-#' @param pop_col A string specifying the column name for the population (default is NULL).
-#' @param pop_lab A string specifying the label for the population (default is "Population").
-#' @param ar_col A string specifying the column name for the attack rate (default is NULL).
-#' @param ar_lab A string specifying the label for the attack rate (default is "Attack rate").
-#'
-#' @return A list of HTML elements to be used as tooltips in a Shiny application.
-#' @importFrom scales number
-#' @importFrom glue glue
-#' @importFrom purrr map
-#' @importFrom shiny HTML
-#' @noRd
-#'
-#' @examples
-#' df <- data.frame(
-#'   name = c("Location A", "Location B"),
-#'   total = c(100, NA),
-#'   population = c(1000, 2000),
-#'   attack_rate = c(10, NA)
-#' )
-#' make_leaf_tooltip(df, pop_col = "population", ar_col = "attack_rate")
-make_leaf_tooltip <- function(
-  df,
-  name_col = "name",
-  n_col = "total",
-  n_lab = "N patients",
-  pop_col = NULL,
-  pop_lab = "Population",
-  ar_col = NULL,
-  ar_lab = "Attack rate"
-) {
-  counts <- ifelse(is.na(df[[n_col]]), "No data", scales::number(df[[n_col]], accuracy = 1))
-  if (all(!is.null(pop_col), !is.null(ar_col))) {
-    pop <- ifelse(is.na(df[[pop_col]]), "No data", scales::number(df[[pop_col]], accuracy = 1))
-    ar <- ifelse(is.na(df[[ar_col]]), "No data", scales::number(df[[ar_col]], accuracy = .1))
-    glue::glue(
-      "<b>{df[[name_col]]}</b><br>
-       {n_lab}: <b>{counts}</b><br>
-       {pop_lab}: <b>{pop}</b><br>
-       {ar_lab}: <b>{ar}</b> / 100 000<br>"
-    ) %>%
-      purrr::map(shiny::HTML)
-  } else {
-    glue::glue(
-      "<b>{df[[name_col]]}</b><br>
-       {n_lab}: <b>{counts}</b><br>"
-    ) %>%
-      purrr::map(shiny::HTML)
-  }
-}
-
-#' Get Label for Selected Choice
-#'
-#' This function retrieves the label for a selected choice from a list of choices.
-#'
-#' @param selected The selected choice for which the label is to be retrieved.
-#' @param choices A named vector of choices from which the label is to be retrieved.
-#' @param .default The default label to be used if the selected choice is not found in the choices. Defaults to the value of the "epishiny.count.label" option, or "N" if the option is not set.
-#'
-#' @return The label corresponding to the selected choice if found in the choices, otherwise the default label.
-#'
-#' @examples
-#' choices <- c(a = "apple", b = "banana", c = "cherry")
-#' get_label("b", choices) # Returns "banana"
-#' get_label("d", choices) # Returns "N" (default)
-#'
-#' @noRd
-get_label <- function(selected, choices, .default = getOption("epishiny.count.label", "N")) {
-  if (length(choices)) {
-    lab <- choices[choices == selected]
-    ifelse(rlang::is_named(lab), names(lab), lab)
-  } else {
-    .default
-  }
-}
-
-#' @noRd
-format_filter_info <- function(fi = NULL, tf = NULL, pf = NULL) {
-  if (length(tf)) {
-    if (length(fi)) {
-      # since we already have a period filter value from the date input, replace it with bar click period
-      fi <- stringr::str_replace(
-        fi,
-        "\\d{2}/[A-Za-z]{3}/\\d{2} - \\d{2}/[A-Za-z]{3}/\\d{2}",
-        tf$lab
-      )
-    } else {
-      fi <- paste("<b>Filters applied</b></br>Period:", tf$lab)
-    }
-  }
-  if (length(pf)) {
-    pf_lab <- glue::glue("{pf$level_name}: {pf$region_name}")
-    if (length(fi)) {
-      fi <- glue::glue("{fi}</br>{pf_lab}")
-    } else {
-      fi <- paste0("<b>Filters applied</b></br>", pf_lab)
-    }
-  }
-  fi
 }

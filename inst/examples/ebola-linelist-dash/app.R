@@ -40,7 +40,6 @@ group_vars <- c(
 ui <- page_sidebar(
   useBusyIndicators(),
   class = "bslib-page-dashboard",
-  padding = c(10, 50),
   title = "epishiny",
   # sidebar
   sidebar = filter_ui(
@@ -58,14 +57,19 @@ ui <- page_sidebar(
       title = "Time",
       date_vars = date_vars,
       group_vars = group_vars,
-      ratio_line_lab = "Show CFR line?"
+      ratio_line_lab = "Show CFR line?",
+      use_sidebar = TRUE
     ),
     place_ui(
       id = "place",
       geo_data = geo_data,
-      group_vars = group_vars
+      # group_vars = group_vars,
+      use_sidebar = TRUE
     ),
-    person_ui(id = "person")
+    person_ui(
+      id = "person",
+      use_sidebar = FALSE
+    )
   )
 )
 
@@ -76,20 +80,20 @@ server <- function(input, output, session) {
     df = df_ll_ebola,
     date_vars = date_vars,
     group_vars = group_vars,
-    time_filter = reactive(bar_click()),
-    place_filter = reactive(map_click())
+    time_filter = bar_click,
+    place_filter = map_click
   )
   map_click <- place_server(
     id = "place",
-    df = reactive(app_data()$df),
+    df = app_data$df,
     geo_data = geo_data,
-    group_vars = group_vars,
-    time_filter = reactive(bar_click()),
-    filter_info = reactive(app_data()$filter_info)
+    # group_vars = group_vars,
+    time_filter = bar_click,
+    filter_info = app_data$filter_info
   )
   bar_click <- time_server(
     id = "time",
-    df = reactive(app_data()$df),
+    df = app_data$df,
     date_vars = date_vars,
     group_vars = group_vars,
     show_ratio = TRUE,
@@ -97,20 +101,20 @@ server <- function(input, output, session) {
     ratio_lab = "CFR",
     ratio_numer = "Death",
     ratio_denom = c("Death", "Recover"),
-    place_filter = reactive(map_click()),
-    filter_info = reactive(app_data()$filter_info)
+    place_filter = map_click,
+    filter_info = app_data$filter_info
   )
   person_server(
     id = "person",
-    df = reactive(app_data()$df),
+    df = app_data$df,
     age_var = "age",
-    age_breaks = c(seq(0, 50, by = 5), Inf), # 5 year intervals
+    # age_breaks = c(seq(0, 50, by = 5), Inf), # 5 year intervals
     sex_var = "gender",
     male_level = "m",
     female_level = "f",
-    time_filter = reactive(bar_click()),
-    place_filter = reactive(map_click()),
-    filter_info = reactive(app_data()$filter_info)
+    time_filter = bar_click,
+    place_filter = map_click,
+    filter_info = app_data$filter_info
   )
 }
 
