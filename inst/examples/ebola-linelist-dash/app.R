@@ -63,7 +63,7 @@ ui <- page_sidebar(
     place_ui(
       id = "place",
       geo_data = geo_data,
-      # group_vars = group_vars,
+      group_vars = group_vars,
       use_sidebar = TRUE
     ),
     person_ui(
@@ -87,7 +87,7 @@ server <- function(input, output, session) {
     id = "place",
     df = app_data$df,
     geo_data = geo_data,
-    # group_vars = group_vars,
+    group_vars = group_vars,
     time_filter = bar_click,
     filter_info = app_data$filter_info
   )

@@ -319,18 +319,16 @@ test_that("get_geo_counts aggregates linelist data", {
 
   result <- epishiny:::get_geo_counts(
     df = df,
-    is_agg = FALSE,
     geo_var = "region",
-    count_var = NULL,
-    count_lab = "cases"
+    count_vars = NULL
   )
 
   expect_s3_class(result, "data.frame")
-  expect_has_columns(result, c("region", "cases", "total"))
+  expect_has_columns(result, c("region", "total"))
   expect_equal(nrow(result), 3)
-  expect_equal(result$cases[result$region == "A"], 2)
-  expect_equal(result$cases[result$region == "B"], 2)
-  expect_equal(result$cases[result$region == "C"], 1)
+  expect_equal(result$total[result$region == "A"], 2)
+  expect_equal(result$total[result$region == "B"], 2)
+  expect_equal(result$total[result$region == "C"], 1)
 })
 
 test_that("get_geo_counts aggregates aggregated data with weights", {
@@ -341,17 +339,15 @@ test_that("get_geo_counts aggregates aggregated data with weights", {
 
   result <- epishiny:::get_geo_counts(
     df = df,
-    is_agg = TRUE,
     geo_var = "region",
-    count_var = "count",
-    count_lab = "cases"
+    count_vars = "count"
   )
 
   expect_s3_class(result, "data.frame")
-  expect_has_columns(result, c("region", "cases", "total"))
+  expect_has_columns(result, c("region", "count", "total"))
   expect_equal(nrow(result), 2)
-  expect_equal(result$cases[result$region == "A"], 25) # 10 + 15
-  expect_equal(result$cases[result$region == "B"], 20)
+  expect_equal(result$count[result$region == "A"], 25) # 10 + 15
+  expect_equal(result$count[result$region == "B"], 20)
 })
 
 test_that("get_geo_counts creates total column", {
@@ -359,44 +355,111 @@ test_that("get_geo_counts creates total column", {
 
   result <- epishiny:::get_geo_counts(
     df = df,
-    is_agg = FALSE,
     geo_var = "region",
-    count_var = NULL,
-    count_lab = "n"
+    count_vars = NULL
   )
 
   expect_true("total" %in% names(result))
-  expect_equal(result$total, result$n)
+  expect_equal(result$total, c(1, 1, 1))
+})
+
+test_that("get_geo_counts handles multiple count variables", {
+  df <- data.frame(
+    region = c("A", "A", "B", "B"),
+    cases = c(10, 15, 20, 5),
+    deaths = c(1, 2, 3, 1)
+  )
+
+  result <- epishiny:::get_geo_counts(
+    df = df,
+    geo_var = "region",
+    count_vars = c("cases", "deaths")
+  )
+
+  expect_true(all(c("region", "cases", "deaths", "total") %in% names(result)))
+  expect_equal(result$cases[result$region == "A"], 25)  # 10 + 15
+  expect_equal(result$deaths[result$region == "A"], 3)  # 1 + 2
+  expect_equal(result$total, result$cases)  # total = first count_var
+})
+
+test_that("get_geo_counts maintains backward compatibility with single count_var", {
+  df <- data.frame(
+    region = c("A", "A", "B"),
+    cases = c(10, 15, 20)
+  )
+
+  result <- epishiny:::get_geo_counts(
+    df = df,
+    geo_var = "region",
+    count_vars = "cases"
+  )
+
+  expect_true(all(c("region", "cases", "total") %in% names(result)))
+  expect_equal(result$total, result$cases)
+})
+
+test_that("get_geo_counts handles linelist data correctly", {
+  df <- data.frame(region = c("A", "A", "B", "B", "C"))
+
+  result <- epishiny:::get_geo_counts(
+    df = df,
+    geo_var = "region",
+    count_vars = NULL
+  )
+
+  expect_has_columns(result, c("region", "total"))
+  expect_false("n" %in% names(result))
+  expect_equal(result$total[result$region == "A"], 2)
+})
+
+test_that("get_geo_counts handles named count_vars vector", {
+  df <- data.frame(
+    region = c("A", "A", "B", "B"),
+    cases = c(10, 15, 20, 5),
+    deaths = c(1, 2, 3, 1)
+  )
+
+  result <- epishiny:::get_geo_counts(
+    df = df,
+    geo_var = "region",
+    count_vars = c("Cases" = "cases", "Deaths" = "deaths")
+  )
+
+  # Should use actual column names, not labels
+  expect_true(all(c("region", "cases", "deaths", "total") %in% names(result)))
+  expect_equal(result$cases[result$region == "A"], 25)
+  expect_equal(result$deaths[result$region == "A"], 3)
 })
 
 # Test get_map_circle_df() -----------------------------------------------------
 
-test_that("get_map_circle_df returns ungrouped data correctly", {
+test_that("get_map_circle_df returns ungrouped linelist data correctly", {
   df <- data.frame(
     region = c("A", "A", "B", "B"),
     value = 1:4
   )
 
-  df_geo_counts <- data.frame(
+  # simulate sf-like df_geo (with geometry-like structure for st_drop_geometry)
+  df_geo <- sf::st_sf(
     region = c("A", "B"),
-    n = c(2, 2),
-    total = c(2, 2)
+    total = c(2, 2),
+    geometry = sf::st_sfc(
+      sf::st_polygon(list(matrix(c(0, 0, 1, 1, 0, 0, 1, 1, 0, 0), ncol = 2))),
+      sf::st_polygon(list(matrix(c(1, 1, 2, 2, 1, 1, 2, 2, 1, 1), ncol = 2)))
+    )
   )
 
   result <- epishiny:::get_map_circle_df(
-    df = df,
-    is_agg = FALSE,
-    is_grouped = FALSE,
+    df_raw = df,
+    df_geo = df_geo,
     geo_var = "region",
-    count_var = NULL,
-    group_var = NULL,
-    df_geo_counts = df_geo_counts,
-    geo_join = "region",
-    n_lab = "n"
+    geo_join = "region"
   )
 
   expect_s3_class(result, "data.frame")
-  expect_equal(result, df_geo_counts)
+  expect_true("n" %in% names(result))
+  expect_equal(result$n, result$total)
+  expect_equal(attr(result, "chart_cols"), "n")
 })
 
 test_that("get_map_circle_df handles grouped linelist data", {
@@ -405,53 +468,84 @@ test_that("get_map_circle_df handles grouped linelist data", {
     outcome = c("Death", "Recovery", "Death", "Death")
   )
 
-  df_geo_counts <- data.frame(
+  df_geo <- sf::st_sf(
     region = c("A", "B"),
-    total = c(2, 2)
+    total = c(2, 2),
+    geometry = sf::st_sfc(
+      sf::st_polygon(list(matrix(c(0, 0, 1, 1, 0, 0, 1, 1, 0, 0), ncol = 2))),
+      sf::st_polygon(list(matrix(c(1, 1, 2, 2, 1, 1, 2, 2, 1, 1), ncol = 2)))
+    )
   )
 
   result <- epishiny:::get_map_circle_df(
-    df = df,
-    is_agg = FALSE,
-    is_grouped = TRUE,
+    df_raw = df,
+    df_geo = df_geo,
     geo_var = "region",
-    count_var = NULL,
-    group_var = "outcome",
-    df_geo_counts = df_geo_counts,
     geo_join = "region",
-    n_lab = "n"
+    group_var = "outcome"
   )
 
   expect_s3_class(result, "data.frame")
   expect_has_columns(result, c("region", "total"))
-  # Should have columns for each group
-  expect_true("Death" %in% names(result) || "Recovery" %in% names(result))
+  expect_true("Death" %in% names(result))
+  expect_true("Recovery" %in% names(result))
+  chart_cols <- attr(result, "chart_cols")
+  expect_true(all(c("Death", "Recovery") %in% chart_cols))
 })
 
 test_that("get_map_circle_df filters out zero totals", {
   df <- data.frame(region = c("A", "B"))
 
-  df_geo_counts <- data.frame(
+  df_geo <- sf::st_sf(
     region = c("A", "B", "C"),
-    n = c(5, 0, 10),
-    total = c(5, 0, 10)
+    total = c(5, 0, 10),
+    geometry = sf::st_sfc(
+      sf::st_polygon(list(matrix(c(0, 0, 1, 1, 0, 0, 1, 1, 0, 0), ncol = 2))),
+      sf::st_polygon(list(matrix(c(1, 1, 2, 2, 1, 1, 2, 2, 1, 1), ncol = 2))),
+      sf::st_polygon(list(matrix(c(2, 2, 3, 3, 2, 2, 3, 3, 2, 2), ncol = 2)))
+    )
   )
 
   result <- epishiny:::get_map_circle_df(
-    df = df,
-    is_agg = FALSE,
-    is_grouped = FALSE,
+    df_raw = df,
+    df_geo = df_geo,
     geo_var = "region",
-    count_var = NULL,
-    group_var = NULL,
-    df_geo_counts = df_geo_counts,
-    geo_join = "region",
-    n_lab = "n"
+    geo_join = "region"
   )
 
   # Should exclude region B with total = 0
   expect_false("B" %in% result$region)
   expect_true(all(result$total > 0))
+})
+
+test_that("get_map_circle_df handles aggregated ungrouped data", {
+  df <- data.frame(
+    region = c("A", "A", "B"),
+    cases = c(10, 15, 20)
+  )
+
+  df_geo <- sf::st_sf(
+    region = c("A", "B"),
+    cases = c(25, 20),
+    total = c(25, 20),
+    geometry = sf::st_sfc(
+      sf::st_polygon(list(matrix(c(0, 0, 1, 1, 0, 0, 1, 1, 0, 0), ncol = 2))),
+      sf::st_polygon(list(matrix(c(1, 1, 2, 2, 1, 1, 2, 2, 1, 1), ncol = 2)))
+    )
+  )
+
+  result <- epishiny:::get_map_circle_df(
+    df_raw = df,
+    df_geo = df_geo,
+    geo_var = "region",
+    geo_join = "region",
+    count_var = "cases"
+  )
+
+  expect_s3_class(result, "data.frame")
+  expect_true("n" %in% names(result))
+  expect_equal(result$n, result$cases)
+  expect_equal(attr(result, "chart_cols"), "n")
 })
 
 test_that("get_map_circle_df handles aggregated grouped data", {
@@ -461,23 +555,163 @@ test_that("get_map_circle_df handles aggregated grouped data", {
     cases = c(10, 20, 15)
   )
 
-  df_geo_counts <- data.frame(
+  df_geo <- sf::st_sf(
     region = c("A", "B"),
-    total = c(30, 15)
+    cases = c(30, 15),
+    total = c(30, 15),
+    geometry = sf::st_sfc(
+      sf::st_polygon(list(matrix(c(0, 0, 1, 1, 0, 0, 1, 1, 0, 0), ncol = 2))),
+      sf::st_polygon(list(matrix(c(1, 1, 2, 2, 1, 1, 2, 2, 1, 1), ncol = 2)))
+    )
   )
 
   result <- epishiny:::get_map_circle_df(
-    df = df,
-    is_agg = TRUE,
-    is_grouped = TRUE,
+    df_raw = df,
+    df_geo = df_geo,
     geo_var = "region",
-    count_var = "cases",
-    group_var = "outcome",
-    df_geo_counts = df_geo_counts,
     geo_join = "region",
-    n_lab = "n"
+    count_var = "cases",
+    group_var = "outcome"
   )
 
   expect_s3_class(result, "data.frame")
   expect_has_columns(result, c("region", "total"))
+  chart_cols <- attr(result, "chart_cols")
+  expect_true(all(c("Death", "Recovery") %in% chart_cols))
+})
+
+# Test prepare_geo_data() ------------------------------------------------------
+
+test_that("prepare_geo_data returns sf with correct columns for linelist", {
+  df <- data.frame(
+    region = c("A", "A", "B", "B", "C"),
+    case = 1:5
+  )
+
+  sf_test <- sf::st_sf(
+    id = c("A", "B", "C"),
+    name = c("Region A", "Region B", "Region C"),
+    geometry = sf::st_sfc(
+      sf::st_polygon(list(matrix(c(0, 0, 1, 1, 0, 0, 1, 1, 0, 0), ncol = 2))),
+      sf::st_polygon(list(matrix(c(1, 1, 2, 2, 1, 1, 2, 2, 1, 1), ncol = 2))),
+      sf::st_polygon(list(matrix(c(2, 2, 3, 3, 2, 2, 3, 3, 2, 2), ncol = 2)))
+    )
+  )
+  sf_test <- epishiny:::add_coords(sf_test)
+
+  result <- epishiny:::prepare_geo_data(
+    df = df,
+    sf = sf_test,
+    geo_var = "region",
+    geo_join = c("id" = "region"),
+    join_cols = "id",
+    geo_name_col = "name"
+  )
+
+  expect_s3_class(result, "sf")
+  expect_has_columns(result, c("id", "name", "lon", "lat", "total"))
+  expect_equal(nrow(result), 3)
+  expect_equal(result$total[result$id == "A"], 2)
+})
+
+test_that("prepare_geo_data returns sf with correct columns for aggregated data", {
+  df <- data.frame(
+    region = c("A", "A", "B"),
+    cases = c(10, 15, 20),
+    deaths = c(1, 2, 3)
+  )
+
+  sf_test <- sf::st_sf(
+    id = c("A", "B"),
+    name = c("Region A", "Region B"),
+    geometry = sf::st_sfc(
+      sf::st_polygon(list(matrix(c(0, 0, 1, 1, 0, 0, 1, 1, 0, 0), ncol = 2))),
+      sf::st_polygon(list(matrix(c(1, 1, 2, 2, 1, 1, 2, 2, 1, 1), ncol = 2)))
+    )
+  )
+  sf_test <- epishiny:::add_coords(sf_test)
+
+  result <- epishiny:::prepare_geo_data(
+    df = df,
+    sf = sf_test,
+    geo_var = "region",
+    geo_join = c("id" = "region"),
+    join_cols = "id",
+    geo_name_col = "name",
+    count_vars = c("cases", "deaths")
+  )
+
+  expect_s3_class(result, "sf")
+  expect_has_columns(result, c("id", "name", "cases", "deaths", "total"))
+  expect_equal(result$cases[result$id == "A"], 25)
+  expect_equal(result$deaths[result$id == "A"], 3)
+  expect_equal(result$total, result$cases) # total = first count_var
+})
+
+test_that("prepare_geo_data computes attack rates with population data", {
+  df <- data.frame(
+    region = c("A", "B"),
+    case = 1:2
+  )
+
+  sf_test <- sf::st_sf(
+    id = c("A", "B"),
+    name = c("Region A", "Region B"),
+    pop = c(1000, 2000),
+    geometry = sf::st_sfc(
+      sf::st_polygon(list(matrix(c(0, 0, 1, 1, 0, 0, 1, 1, 0, 0), ncol = 2))),
+      sf::st_polygon(list(matrix(c(1, 1, 2, 2, 1, 1, 2, 2, 1, 1), ncol = 2)))
+    )
+  )
+  sf_test <- epishiny:::add_coords(sf_test)
+
+  result <- epishiny:::prepare_geo_data(
+    df = df,
+    sf = sf_test,
+    geo_var = "region",
+    geo_join = c("id" = "region"),
+    join_cols = "id",
+    geo_name_col = "name",
+    geo_pop_var = "pop"
+  )
+
+  expect_true("attack_rate" %in% names(result))
+  # attack_rate = (total / pop) * 100000
+  expect_equal(result$attack_rate[result$id == "A"], (1 / 1000) * 1e5)
+})
+
+test_that("prepare_geo_data computes per-variable attack rates for aggregated data", {
+  df <- data.frame(
+    region = c("A", "B"),
+    cases = c(100, 200),
+    deaths = c(10, 20)
+  )
+
+  sf_test <- sf::st_sf(
+    id = c("A", "B"),
+    name = c("Region A", "Region B"),
+    pop = c(10000, 20000),
+    geometry = sf::st_sfc(
+      sf::st_polygon(list(matrix(c(0, 0, 1, 1, 0, 0, 1, 1, 0, 0), ncol = 2))),
+      sf::st_polygon(list(matrix(c(1, 1, 2, 2, 1, 1, 2, 2, 1, 1), ncol = 2)))
+    )
+  )
+  sf_test <- epishiny:::add_coords(sf_test)
+
+  result <- epishiny:::prepare_geo_data(
+    df = df,
+    sf = sf_test,
+    geo_var = "region",
+    geo_join = c("id" = "region"),
+    join_cols = "id",
+    geo_name_col = "name",
+    geo_pop_var = "pop",
+    count_vars = c("cases", "deaths")
+  )
+
+  expect_true("attack_rate_cases" %in% names(result))
+  expect_true("attack_rate_deaths" %in% names(result))
+  expect_true("attack_rate" %in% names(result))
+  # attack_rate = attack_rate of first count_var (cases)
+  expect_equal(result$attack_rate, result$attack_rate_cases)
 })

@@ -359,6 +359,60 @@ test_that("multiple count variables can be selected", {
   )
 })
 
+test_that("choropleth and symbols can select different count_vars independently", {
+  df_agg <- make_test_aggregated(100)
+  sf_test <- make_test_sf(5)
+  # Add population to enable choropleth
+  sf_test$population <- sample(1000:5000, 5)
+
+  geo_layer1 <- geo_layer(
+    layer_name = "Region",
+    sf = sf_test,
+    name_var = "name",
+    join_by = c("name" = "region"),
+    pop_var = "population"
+  )
+
+  testServer(
+    place_server,
+    args = list(
+      df = df_agg,
+      geo_data = list(geo_layer1),
+      count_vars = c("Cases" = "cases", "Deaths" = "deaths")
+    ),
+    {
+      # Set symbols to cases
+      session$setInputs(
+        geo_level = "Region",
+        count_var = "cases",
+        choro_indicator = "deaths",  # Set choropleth to deaths
+        choro_var = "attack_rate",  # Display as rates
+        choro_active = TRUE,
+        symbols_active = TRUE
+      )
+
+      # Should work - symbols showing cases, choropleth showing death rates
+      expect_true(TRUE)
+
+      # Verify reactive values are independent
+      expect_equal(rv$count_var, "cases")  # Symbols layer
+      expect_equal(rv$choro_indicator, "deaths")  # Choropleth indicator
+      expect_equal(rv$choro_display, "attack_rate")  # Choropleth display mode
+
+      # Switch symbols to deaths while keeping choropleth on cases rates
+      session$setInputs(
+        count_var = "deaths",
+        choro_indicator = "cases"
+      )
+
+      # Should work - now reversed
+      expect_true(TRUE)
+      expect_equal(rv$count_var, "deaths")
+      expect_equal(rv$choro_indicator, "cases")
+    }
+  )
+})
+
 # Test filter_info reactive ------------------------------------------------
 
 test_that("filter_info_out formats filter information", {

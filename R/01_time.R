@@ -282,7 +282,7 @@ time_server <- function(
           dplyr::mutate(
             !!rv$date_sym := lubridate::floor_date(
               lubridate::as_date(!!rv$date_sym),
-              unit = input$date_interval,
+              unit = tolower(input$date_interval),
               week_start = getOption("epishiny.week.start", 1)
             )
           )
@@ -299,7 +299,7 @@ time_server <- function(
           date_var = rv$date,
           count_var = rv$count_var,
           group_var = rv$group,
-          date_interval = input$date_interval
+          date_interval = tolower(input$date_interval)
         )
 
         if (show_ratio) {

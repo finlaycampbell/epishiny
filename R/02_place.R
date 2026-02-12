@@ -233,7 +233,7 @@ place_server <- function(
   count_vars = NULL,
   group_vars = NULL,
   show_parent_borders = FALSE,
-  choro_lab_rate = "Attack Rate /100 000",
+  choro_lab_rate = "Rate /100 000",
   choro_opacity = .7,
   export_width = 1200,
   export_height = 650,
@@ -245,6 +245,9 @@ place_server <- function(
     id,
     function(input, output, session) {
       ns <- session$ns
+
+      # determine once whether data is pre-aggregated
+      is_agg <- length(count_vars) > 0
 
       # re-structure geo_data if only 1 layer provided
       if (inherits(geo_data, "epishiny_geo_layer")) {
@@ -334,25 +337,45 @@ place_server <- function(
         req(geo_select())
         has_pop <- !is.null(geo_select()$pop_var)
 
+        # Update indicator selector (aggregate data only)
+        if (length(count_vars) > 0) {
+          updateSelectInput(
+            session,
+            "choro_indicator",
+            choices = count_vars,
+            selected = input$choro_indicator %||% unname(count_vars)[1]
+          )
+        }
+
+        # Update display selector choices and visibility
         if (has_pop) {
-          # Population data available - show both options
-          choro_choices <- c("Rates" = "attack_rate", "Counts" = "total")
+          # Population available - show Rates and Counts options
           updateSelectInput(
             session,
             "choro_var",
-            choices = choro_choices,
+            choices = c("Rates" = "attack_rate", "Counts" = "total"),
             selected = input$choro_var %||% "attack_rate"
           )
           bslib::update_switch("choro_active", value = TRUE)
         } else {
           # No population data - only show counts option
-          choro_choices <- c("Counts" = "total")
-          updateSelectInput(
-            session,
-            "choro_var",
-            choices = choro_choices,
-            selected = "total"
-          )
+          if (length(count_vars) > 0) {
+            # Aggregate data without population - hide choro_var, only use indicator
+            updateSelectInput(
+              session,
+              "choro_var",
+              choices = c("Counts" = "total"),
+              selected = "total"
+            )
+          } else {
+            # Linelist without population - show only "Counts" option
+            updateSelectInput(
+              session,
+              "choro_var",
+              choices = c("Counts" = "total"),
+              selected = "total"
+            )
+          }
           bslib::update_switch("choro_active", value = FALSE)
         }
       }) %>%
@@ -367,15 +390,31 @@ place_server <- function(
         geo_col <- unname(geo_join)
         geo_col_sym <- rlang::sym(geo_col)
         geo_name_col <- geo_select()$name_var
-        geo_name_col_sym <- rlang::sym(geo_name_col)
         geo_level_name <- geo_select()$layer_name
         geo_pop_var <- geo_select()$pop_var
         map_var <- input$var %||% "n"
-        map_var_sym <- rlang::sym(map_var)
         var_list <- c("n", group_vars)
         map_var_lab <- get_label(map_var, var_list)
         count_var <- input$count_var
         n_lab <- get_label(count_var, count_vars)
+
+        # Choropleth layer selections
+        choro_indicator <- input$choro_indicator %||% unname(count_vars)[1]
+        choro_display <- input$choro_var %||% "attack_rate"
+
+        # Determine which column to visualize in choropleth
+        choro_col <- if (choro_display == "attack_rate") {
+          if (is_agg && length(count_vars) > 1) paste0("attack_rate_", choro_indicator) else "attack_rate"
+        } else {
+          if (is_agg) choro_indicator else "total"
+        }
+
+        # # Get label for legend
+        choro_lab <- if (choro_display == "attack_rate") {
+          paste(get_label(choro_indicator, count_vars), choro_lab_rate)
+        } else {
+          get_label(choro_indicator, count_vars)
+        }
 
         # save as reactive values
         rv$geo_join <- geo_join
@@ -383,14 +422,16 @@ place_server <- function(
         rv$geo_col <- geo_col
         rv$geo_col_sym <- geo_col_sym
         rv$geo_name_col <- geo_name_col
-        rv$geo_name_col_sym <- geo_name_col_sym
         rv$geo_level_name <- geo_level_name
         rv$geo_pop_var <- geo_pop_var
         rv$map_var <- map_var
-        rv$map_var_sym <- map_var_sym
         rv$map_var_lab <- map_var_lab
         rv$count_var <- count_var
         rv$n_lab <- n_lab
+        rv$choro_indicator <- choro_indicator
+        rv$choro_display <- choro_display
+        rv$choro_col <- choro_col
+        rv$choro_lab <- choro_lab
       })
 
       # filter geo boundaries to only those with incidence + their neighbours
@@ -473,66 +514,52 @@ place_server <- function(
         }
       })
 
-      # join ll data to boundaries
+      # join data to boundaries and compute attack rates
       df_geo_counts <- reactive({
-        # is the data pre-aggregated
-        is_agg <- as.logical(length(count_vars))
-
-        df_counts <- get_geo_counts(
+        prepare_geo_data(
           df = df_mod(),
-          is_agg = is_agg,
+          sf = rv$sf,
           geo_var = rv$geo_col,
-          count_var = rv$count_var,
-          count_lab = rv$n_lab
+          geo_join = rv$geo_join,
+          join_cols = rv$join_cols,
+          geo_name_col = rv$geo_name_col,
+          geo_pop_var = rv$geo_pop_var,
+          count_vars = if (is_agg) count_vars else NULL
         )
-
-        df_out <- rv$sf %>%
-          dplyr::mutate(name = !!rv$geo_name_col_sym) %>%
-          dplyr::select(dplyr::any_of(c(rv$join_cols, rv$geo_pop_var, "name", "lon", "lat"))) %>%
-          dplyr::left_join(df_counts, by = rv$geo_join) %>%
-          dplyr::mutate(dplyr::across(dplyr::where(is.numeric), as.double))
-        # dplyr::mutate(dplyr::across(dplyr::where(is.double), ~ dplyr::if_else(is.na(.x), 0, .x)))
-
-        # add attack rate if there is population data
-        if (!is.null(rv$geo_pop_var)) {
-          df_out <- df_out %>%
-            dplyr::mutate(
-              # attack rate per 100 000
-              attack_rate = dplyr::na_if((.data$total / .data[[rv$geo_pop_var]]) * 1e5, 0)
-            )
-        }
-
-        return(df_out)
       }) %>%
-        bindEvent(df_mod(), rv$sf, rv$count_var)
+        bindEvent(df_mod(), rv$sf)
 
       df_map_circles <- reactive({
-        # drop geometry and unneeded cols
-        df_geo_counts <- df_geo_counts() %>%
-          sf::st_drop_geometry() %>%
-          dplyr::select(-dplyr::any_of(c("attack_rate", rv$geo_pop_var)))
-        # is the data pre-aggregated
-        is_agg <- as.logical(length(count_vars))
-        # is a data grouping variable supplied
-        is_grouped <- rv$map_var != "n"
-        # get df
-        df_circles <- get_map_circle_df(
-          df = df_mod(),
-          is_agg = is_agg,
-          is_grouped = is_grouped,
+        get_map_circle_df(
+          df_raw = df_mod(),
+          df_geo = df_geo_counts(),
           geo_var = rv$geo_col,
-          count_var = rv$count_var,
-          group_var = rv$map_var,
-          df_geo_counts = df_geo_counts,
           geo_join = rv$geo_join,
-          n_lab = rv$n_lab
+          count_var = if (is_agg) rv$count_var else NULL,
+          group_var = if (rv$map_var != "n") rv$map_var else NULL
         )
       }) %>%
-        bindEvent(df_geo_counts(), rv$map_var)
+        bindEvent(df_geo_counts(), rv$map_var, rv$count_var)
 
       # add polygon boundaries with tooltip data info
       observe({
         req(df_geo_counts())
+
+        # Determine which count and attack rate columns to show in tooltip
+        choro_indicator <- rv$choro_indicator
+        if (is_agg && !is.null(choro_indicator)) {
+          tt_n_col <- choro_indicator
+          tt_n_lab <- get_label(choro_indicator, count_vars)
+          tt_ar_col <- if (length(count_vars) > 1) {
+            paste0("attack_rate_", choro_indicator)
+          } else {
+            "attack_rate"
+          }
+        } else {
+          tt_n_col <- "total"
+          tt_n_lab <- rv$n_lab
+          tt_ar_col <- "attack_rate"
+        }
 
         map_proxy <- leaflet::leafletProxy("map", session) %>%
           leaflet::clearGroup("Boundaries") %>%
@@ -550,11 +577,13 @@ place_server <- function(
           df_geo_counts(),
           rv$geo_name_col,
           rv$join_cols,
-          rv$n_lab,
-          rv$geo_pop_var
+          n_lab = tt_n_lab,
+          geo_pop_var = rv$geo_pop_var,
+          n_col = tt_n_col,
+          ar_col = tt_ar_col
         )
       }) %>%
-        bindEvent(df_geo_counts())
+        bindEvent(df_geo_counts(), rv$choro_indicator)
 
       # add/update Choropleth polygons when df_geo_counts() changes
       observe({
@@ -567,7 +596,7 @@ place_server <- function(
         if (input$choro_active) {
           # Create choropleth settings object
           choro_settings <- list(
-            variable = input$choro_var %||% "attack_rate",
+            variable = rv$choro_col,
             palette = input$choro_pal %||% "Reds",
             reverse_palette = input$choro_pal_rev %||% FALSE,
             breaks_method = input$choro_breaks %||% "quantile",
@@ -576,12 +605,13 @@ place_server <- function(
             legend_position = "bottomright"
           )
 
-          add_choropleth_layer(map_proxy, df_geo_counts(), choro_settings, rv$n_lab, choro_lab_rate)
+          add_choropleth_layer(map_proxy, df_geo_counts(), choro_settings, rv$choro_lab)
         }
       }) %>%
         bindEvent(
           df_geo_counts(),
-          input$choro_var,
+          rv$choro_indicator,
+          rv$choro_display,
           input$choro_pal,
           input$choro_pal_rev,
           input$choro_breaks,
@@ -601,8 +631,6 @@ place_server <- function(
         if (input$symbols_active | minicharts_init()) {
           # Create symbols settings object
           symbols_settings <- list(
-            join_cols = rv$join_cols,
-            geo_pop_var = rv$geo_pop_var,
             size_multiplier = input$circle_size_mult %||% 6,
             base_multiplier = 10, # 10 for interactive map
             opacity = 0.7,
@@ -625,8 +653,6 @@ place_server <- function(
           minicharts_on(FALSE)
         } else if (!minicharts_on()) {
           symbols_settings <- list(
-            join_cols = rv$join_cols,
-            geo_pop_var = rv$geo_pop_var,
             size_multiplier = input$circle_size_mult %||% 6,
             base_multiplier = 10, # 10 for interactive map
             opacity = 0.7,
@@ -747,20 +773,34 @@ place_server <- function(
 
           # Add boundaries using helper function
           boundaries <- rv$sf
+          choro_indicator <- rv$choro_indicator
+          if (is_agg && !is.null(choro_indicator)) {
+            exp_n_col <- choro_indicator
+            exp_n_lab <- get_label(choro_indicator, count_vars)
+            exp_ar_col <- if (length(count_vars) > 1) {
+              paste0("attack_rate_", choro_indicator)
+            } else {
+              "attack_rate"
+            }
+          } else {
+            exp_n_col <- "total"
+            exp_n_lab <- rv$n_lab
+            exp_ar_col <- "attack_rate"
+          }
           leaf_out <- add_map_boundaries(
             leaf_out,
             df_geo_counts(),
             rv$geo_name_col,
             rv$join_cols,
-            rv$n_lab,
-            rv$geo_pop_var
+            n_lab = exp_n_lab,
+            geo_pop_var = rv$geo_pop_var,
+            n_col = exp_n_col,
+            ar_col = exp_ar_col
           )
 
           # Add symbols layer using helper function
           if (input$symbols_active) {
             symbols_settings <- list(
-              join_cols = rv$join_cols,
-              geo_pop_var = rv$geo_pop_var,
               size_multiplier = input$circle_size_mult %||% 6,
               base_multiplier = 7, # 7 instead of 10 for export (circles appear larger)
               opacity = 0.8, # slightly higher opacity for export
@@ -775,7 +815,7 @@ place_server <- function(
           # Add choropleth layer using helper function
           if (input$choro_active) {
             choro_settings <- list(
-              variable = input$choro_var %||% "attack_rate",
+              variable = rv$choro_col,
               palette = input$choro_pal %||% "Reds",
               reverse_palette = input$choro_pal_rev %||% FALSE,
               breaks_method = input$choro_breaks %||% "quantile",
@@ -788,8 +828,7 @@ place_server <- function(
               leaf_out,
               df_geo_counts(),
               choro_settings,
-              rv$n_lab,
-              choro_lab_rate
+              rv$choro_lab
             )
           }
 
@@ -866,6 +905,17 @@ place_options_ui <- function(
         label = "Show choropleth layer",
         value = TRUE
       ),
+      # Indicator input - only shown if count_vars provided (aggregate data)
+      if (length(count_vars) > 0) {
+        selectInput(
+          ns("choro_indicator"),
+          label = "Indicator",
+          choices = count_vars,
+          selected = unname(count_vars)[1],
+          multiple = FALSE,
+          selectize = FALSE
+        )
+      },
       selectInput(
         ns("choro_var"),
         label = "Display",
@@ -948,7 +998,16 @@ place_options_ui <- function(
 
 #' Add boundary polygons to leaflet map
 #' @noRd
-add_map_boundaries <- function(map, boundaries, geo_name_col, join_cols, n_lab, geo_pop_var) {
+add_map_boundaries <- function(
+  map,
+  boundaries,
+  geo_name_col,
+  join_cols,
+  n_lab,
+  geo_pop_var,
+  n_col = "total",
+  ar_col = "attack_rate"
+) {
   if (nrow(boundaries) == 0) {
     return(map)
   }
@@ -964,9 +1023,10 @@ add_map_boundaries <- function(map, boundaries, geo_name_col, join_cols, n_lab, 
   # Create tooltip hover labels
   tt <- make_leaf_tooltip(
     boundaries,
+    n_col = n_col,
     n_lab = n_lab,
     pop_col = geo_pop_var,
-    ar_col = "attack_rate"
+    ar_col = ar_col
   )
 
   map %>%
@@ -986,7 +1046,8 @@ add_map_boundaries <- function(map, boundaries, geo_name_col, join_cols, n_lab, 
 
 #' Add choropleth layer to leaflet map
 #' @noRd
-add_choropleth_layer <- function(map, df_map, choro_settings, n_lab, rate_lab) {
+add_choropleth_layer <- function(map, df_map, choro_settings, lab) {
+  # n_lab, rate_lab
   if (nrow(df_map) == 0) {
     return(map)
   }
@@ -1035,12 +1096,12 @@ add_choropleth_layer <- function(map, df_map, choro_settings, n_lab, rate_lab) {
   )
 
   # Dynamic legend title
-  legend_title <- switch(
-    choro_settings$variable,
-    "total" = n_lab,
-    "attack_rate" = rate_lab,
-    choro_settings$variable
-  )
+  # legend_title <- switch(
+  #   choro_settings$variable,
+  #   "total" = n_lab,
+  #   "attack_rate" = paste(n_lab, rate_lab),
+  #   choro_settings$variable
+  # )
 
   map %>%
     leaflet::addPolygons(
@@ -1055,7 +1116,7 @@ add_choropleth_layer <- function(map, df_map, choro_settings, n_lab, rate_lab) {
       options = leaflet::pathOptions(pane = "choropleth")
     ) %>%
     leaflet::addLegend(
-      title = legend_title,
+      title = lab,
       data = df_map,
       pal = pal,
       values = stats::as.formula(paste0("~", choro_settings$variable)),
@@ -1073,19 +1134,9 @@ add_symbols_layer <- function(map, df_circles, symbols_settings) {
     return(map)
   }
 
-  # Prepare chart data (remove non-chart columns)
-  chart_data <- df_circles %>%
-    dplyr::select(
-      -dplyr::any_of(c(
-        symbols_settings$join_cols,
-        symbols_settings$geo_pop_var,
-        "attack_rate",
-        "name",
-        "lon",
-        "lat",
-        "total"
-      ))
-    )
+  # Prepare chart data from chart_cols attribute
+  chart_cols <- attr(df_circles, "chart_cols")
+  chart_data <- df_circles[, chart_cols, drop = FALSE]
 
   # Calculate symbol sizes
   # Use different multiplier for export vs interactive (7 vs 10)
@@ -1246,50 +1297,124 @@ add_coords <- function(sf) {
 #' @noRd
 get_geo_counts <- function(
   df,
-  is_agg,
   geo_var,
-  count_var,
-  count_lab
+  count_vars = NULL
 ) {
-  if (is_agg) {
-    df <- dplyr::count(df, .data[[geo_var]], wt = .data[[count_var]], name = count_lab)
+  if (length(count_vars) > 0) {
+    # Aggregated data: sum all count_vars by geography
+    count_col_names <- unname(count_vars)
+    result <- df %>%
+      dplyr::summarise(
+        .by = dplyr::all_of(geo_var),
+        dplyr::across(dplyr::all_of(count_col_names), ~ sum(.x, na.rm = TRUE))
+      )
+    # 'total' = first count_var, used for circle sizing and default choropleth
+    result$total <- result[[count_col_names[1]]]
   } else {
-    df <- dplyr::count(df, .data[[geo_var]], name = count_lab)
+    # Linelist: count rows per geography
+    result <- dplyr::count(df, .data[[geo_var]], name = "total")
   }
-  dplyr::mutate(df, total = .data[[count_lab]])
+  result
+}
+
+#' Aggregate data, join to spatial boundaries, and compute attack rates
+#' @noRd
+prepare_geo_data <- function(
+  df,
+  sf,
+  geo_var,
+  geo_join,
+  join_cols,
+  geo_name_col,
+  geo_pop_var = NULL,
+  count_vars = NULL
+) {
+  df_counts <- get_geo_counts(df, geo_var, count_vars)
+
+  df_out <- sf %>%
+    dplyr::mutate(name = .data[[geo_name_col]]) %>%
+    dplyr::select(dplyr::any_of(c(join_cols, geo_pop_var, "name", "lon", "lat"))) %>%
+    dplyr::left_join(df_counts, by = geo_join) %>%
+    dplyr::mutate(dplyr::across(dplyr::where(is.numeric), as.double))
+
+  # compute attack rates if population data is available
+  if (!is.null(geo_pop_var)) {
+    if (length(count_vars) > 0) {
+      # Aggregated: attack rate for each count_var
+      count_col_names <- unname(count_vars)
+      df_out <- df_out |>
+        dplyr::mutate(
+          dplyr::across(
+            .cols = dplyr::all_of(count_col_names),
+            .fns = ~ dplyr::na_if((.x / .data[[geo_pop_var]]) * 1e5, 0),
+            .names = "attack_rate_{.col}"
+          )
+        )
+      # default attack_rate column from first count_var
+      df_out$attack_rate <- df_out[[paste0("attack_rate_", count_col_names[1])]]
+    } else {
+      # Linelist: single attack_rate column
+      df_out <- df_out %>%
+        dplyr::mutate(
+          attack_rate = dplyr::na_if((.data$total / .data[[geo_pop_var]]) * 1e5, 0)
+        )
+    }
+  }
+
+  df_out
 }
 
 #' @noRd
 get_map_circle_df <- function(
-  df,
-  is_agg,
-  is_grouped,
+  df_raw,
+  df_geo,
   geo_var,
-  count_var,
-  group_var,
-  df_geo_counts,
   geo_join,
-  n_lab
+  count_var = NULL,
+  group_var = NULL
 ) {
+  is_agg <- !is.null(count_var)
+  is_grouped <- !is.null(group_var)
+
+  # drop geometry and attack rate columns (not needed for circles)
+  df_geo <- df_geo %>%
+    sf::st_drop_geometry() %>%
+    dplyr::select(-dplyr::contains("attack_rate"), -dplyr::any_of("attack_rate"))
+
   if (!is_grouped) {
-    df <- df_geo_counts
+    df <- df_geo
+    if (is_agg) {
+      df <- df %>% dplyr::mutate(n = .data[[count_var]])
+    } else {
+      df <- df %>% dplyr::mutate(n = .data$total)
+    }
+    chart_cols <- "n"
   } else {
     if (is_agg) {
-      df <- dplyr::count(df, .data[[geo_var]], .data[[group_var]], wt = .data[[count_var]])
+      df_grouped <- dplyr::count(df_raw, .data[[geo_var]], .data[[group_var]], wt = .data[[count_var]])
     } else {
-      df <- dplyr::count(df, .data[[geo_var]], .data[[group_var]])
+      df_grouped <- dplyr::count(df_raw, .data[[geo_var]], .data[[group_var]])
     }
-    # dplyr::mutate(total = rowSums(dplyr::pick(dplyr::where(is.numeric))))
-    df <- df_geo_counts %>%
-      dplyr::select(-dplyr::any_of(n_lab)) %>%
-      dplyr::left_join(
-        df %>% tidyr::pivot_wider(names_from = dplyr::all_of(group_var), values_from = n),
-        by = geo_join
-      ) %>%
+
+    df_pivoted <- df_grouped %>%
+      tidyr::pivot_wider(names_from = dplyr::all_of(group_var), values_from = "n")
+
+    chart_cols <- setdiff(names(df_pivoted), geo_var)
+
+    # drop count_var column before join to avoid conflict with group columns
+    if (is_agg) {
+      df_geo <- df_geo %>% dplyr::select(-dplyr::any_of(count_var))
+    }
+
+    df <- df_geo %>%
+      dplyr::left_join(df_pivoted, by = geo_join) %>%
       dplyr::mutate(dplyr::across(dplyr::where(is.numeric), as.double)) %>%
       dplyr::mutate(dplyr::across(dplyr::where(is.double), ~ dplyr::if_else(is.na(.x), 0, .x)))
   }
-  df %>% dplyr::filter(.data$total > 0)
+
+  df <- df %>% dplyr::filter(.data$total > 0)
+  attr(df, "chart_cols") <- chart_cols
+  df
 }
 
 #' Copy of mapview::mapshot2 with minor changes to avoid the full dependency on mapview
@@ -1618,7 +1743,7 @@ make_leaf_tooltip <- function(
   pop_col = NULL,
   pop_lab = "Population",
   ar_col = NULL,
-  ar_lab = "Attack rate"
+  ar_lab = "Rate"
 ) {
   counts <- ifelse(is.na(df[[n_col]]), "No data", scales::number(df[[n_col]], accuracy = 1))
   if (all(!is.null(pop_col), !is.null(ar_col))) {
