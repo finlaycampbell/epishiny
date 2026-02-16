@@ -1,7 +1,11 @@
 library(shiny)
 library(bslib)
 library(sf)
-library(epishiny)
+if (basename(getwd()) == "epishiny") {
+  pkgload::load_all()
+} else {
+  library(epishiny)
+}
 
 geo_data <- list(
   geo_layer(

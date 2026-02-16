@@ -19,7 +19,7 @@
 * **`date_var` → `date_vars`** - The filter module now supports multiple date variables. The parameter name has changed from `date_var` (singular) to `date_vars` (plural, named character vector). This allows users to select which date variable to filter on.
 
   ```r
-  # Old (v0.x)
+  # Old (v0.0.x)
   filter_ui("filter", date_var = "date_onset", ...)
   filter_server("filter", date_var = "date_onset", ...)
 
@@ -28,28 +28,20 @@
   filter_server("filter", date_vars = c("Onset date" = "date_onset"), ...)
   ```
 
-* **Filter module return structure** - The filter module now returns a list with named components (`$df` and `$filter_info`) that should be accessed directly, rather than calling the return value as a function.
+* **Filter module return structure** - The filter module now returns a standard list with reactive components (`$df` and `$filter_info`) rather than a reactive list. This avoids the need to evaluate the reactive function with `()` when passing the outputs to other modules. The modules will evaluate the reactive components as necessary internally. 
+
+The outputs of the time and place server functions can also be passed directly to `time_filter` and `place_filter` arguments without the need for wrapping in a `reactive()` and evaluating.
+
+See below for examples.
 
   ```r
-  # Old (v0.x)
   app_data <- filter_server(...)
-  my_df <- app_data()$df
-  my_filter_info <- app_data()$filter_info
+  bar_click <- time_server(...)
 
-  # New (v0.1.0)
-  app_data <- filter_server(...)
-  my_df <- app_data$df
-  my_filter_info <- app_data$filter_info
-  ```
-
-### Module cross-filtering changes
-
-* **No `reactive()` wrapping needed** - When passing filter outputs between modules (`time_filter`, `place_filter`, `filter_info`, `filter_reset`), these should now be passed directly as reactive objects without wrapping them in `reactive()`.
-
-  ```r
-  # Old (v0.x)
+  # Old (v0.0.x)
   place_server(
     ...,
+    df = reactive(app_data()$df)
     time_filter = reactive(bar_click()),
     filter_info = reactive(app_data()$filter_info)
   )
@@ -57,6 +49,7 @@
   # New (v0.1.0)
   place_server(
     ...,
+    df = app_data$df,
     time_filter = bar_click,
     filter_info = app_data$filter_info
   )

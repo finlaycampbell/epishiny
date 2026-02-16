@@ -438,7 +438,7 @@ time_server <- function(
           highcharter::hc_boost(enabled = TRUE) %>%
           my_hc_export(caption = isolate(filter_info_out()))
 
-        if (isolate(input$date_interval == "week")) {
+        if (isolate(tolower(input$date_interval) == "week")) {
           hc <- hc %>%
             highcharter::hc_xAxis(
               title = list(text = date_lab),
@@ -650,10 +650,10 @@ time_server <- function(
         bc <- bar_click()
         if (length(bc)) {
           date_var <- input$date
-          interval <- input$date_interval
+          interval <- tolower(input$date_interval)
           from <- lubridate::as_datetime(bc / 1000, origin = "1970-01-01")
           # this only makes sense if the interval is a full day or more
-          to <- from + lubridate::period(1, input$date_interval) - lubridate::period(1, "day")
+          to <- from + lubridate::period(1, interval) - lubridate::period(1, "day")
           lab <- format_period(c(from, to), interval)
           list(
             date_var = date_var,

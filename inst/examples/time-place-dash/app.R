@@ -9,12 +9,15 @@ library(bslib)
 library(dplyr)
 library(rnaturalearth)
 library(sf)
-# library(epishiny)
-pkgload::load_all()
+if (basename(getwd()) == "epishiny") {
+  pkgload::load_all()
+} else {
+  library(epishiny)
+}
 
 # weekly covid cases and deaths by country from WHO
 url_covid <- "https://srhdpeuwpubsa.blob.core.windows.net/whdh/COVID/WHO-COVID-19-global-data.csv"
-df_covid <- readr::read_csv(url_covid)
+df_covid <- readr::read_csv(url_covid, show_col_types = FALSE)
 
 # get world map data as sf object
 world_map <- rnaturalearth::ne_countries(
@@ -22,7 +25,7 @@ world_map <- rnaturalearth::ne_countries(
   type = "countries",
   returnclass = "sf"
 ) |>
-  st_transform(crs = 4326) %>%
+  st_transform(crs = 4326) |>
   select(iso_a2 = iso_a2_eh, name, pop_est)
 
 # setup the geo layer for epishiny
@@ -50,6 +53,7 @@ app <- epi_dashboard(
   group_vars = group_vars,
   count_vars = count_vars,
   date_intervals = date_intervals,
+  choro_pal_default = "mako",
   col_widths = 12,
   row_heights = c(2, 3)
 )

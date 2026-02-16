@@ -332,20 +332,41 @@ place_server <- function(
       # }) |>
       #   bindEvent(input$popover)
 
+      # run once on launch to set choropleth switch value based on
+      # population data availability in default geo layer
+      observe({
+        req(geo_select())
+        has_pop <- !is.null(geo_select()$pop_var)
+        if (has_pop) {
+          bslib::update_switch("choro_active", value = TRUE)
+        } else {
+          bslib::update_switch("choro_active", value = FALSE)
+        }
+      }) |>
+        bindEvent(geo_select(), once = TRUE)
+
+      # disable choropleth layer if geo_select has no polygons
+      observe({
+        n_polys <- rv$sf %>%
+          dplyr::filter(
+            sf::st_is(sf::st_geometry(rv$sf), c("POLYGON", "MULTIPOLYGON"))
+          ) |>
+          nrow()
+        has_polys <- n_polys > 0
+        bslib::update_switch("choro_active", value = if (has_polys && input$choro_active) TRUE else FALSE)
+        shinyjs::toggleState(id = "choro_active", condition = has_polys)
+        bslib::update_tooltip(
+          "tt-choro",
+          if (has_polys) "Show/Hide layer" else "No polygon geometries available for choropleth layer"
+        )
+      }) |>
+        bindEvent(rv$sf)
+
       # manage choropleth variable options based on population data availability
       observe({
         req(geo_select())
         has_pop <- !is.null(geo_select()$pop_var)
-
-        # Update indicator selector (aggregate data only)
-        if (length(count_vars) > 0) {
-          updateSelectInput(
-            session,
-            "choro_indicator",
-            choices = count_vars,
-            selected = input$choro_indicator %||% unname(count_vars)[1]
-          )
-        }
+        shinyjs::toggle(id = "choro_var", condition = has_pop)
 
         # Update display selector choices and visibility
         if (has_pop) {
@@ -356,27 +377,14 @@ place_server <- function(
             choices = c("Rates" = "attack_rate", "Counts" = "total"),
             selected = input$choro_var %||% "attack_rate"
           )
-          bslib::update_switch("choro_active", value = TRUE)
         } else {
-          # No population data - only show counts option
-          if (length(count_vars) > 0) {
-            # Aggregate data without population - hide choro_var, only use indicator
-            updateSelectInput(
-              session,
-              "choro_var",
-              choices = c("Counts" = "total"),
-              selected = "total"
-            )
-          } else {
-            # Linelist without population - show only "Counts" option
-            updateSelectInput(
-              session,
-              "choro_var",
-              choices = c("Counts" = "total"),
-              selected = "total"
-            )
-          }
-          bslib::update_switch("choro_active", value = FALSE)
+          # No population data - only counts option and hidden
+          updateSelectInput(
+            session,
+            "choro_var",
+            choices = c("Counts" = "total"),
+            selected = "total"
+          )
         }
       }) %>%
         bindEvent(geo_select())
@@ -904,7 +912,8 @@ place_options_ui <- function(
         id = ns("choro_active"),
         label = "Show choropleth layer",
         value = TRUE
-      ),
+      ) |>
+        bslib::tooltip(id = ns("tt-choro"), "Show/Hide layer"),
       # Indicator input - only shown if count_vars provided (aggregate data)
       if (length(count_vars) > 0) {
         selectInput(

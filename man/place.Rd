@@ -34,7 +34,7 @@ place_server(
   count_vars = NULL,
   group_vars = NULL,
   show_parent_borders = FALSE,
-  choro_lab_rate = "Attack Rate /100 000",
+  choro_lab_rate = "Rate /100 000",
   choro_opacity = 0.7,
   export_width = 1200,
   export_height = 650,
