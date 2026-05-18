@@ -26,7 +26,8 @@ filter_server(
   date_vars = NULL,
   group_vars = NULL,
   time_filter = shiny::reactiveVal(),
-  place_filter = shiny::reactiveVal()
+  place_filter = shiny::reactiveVal(),
+  reset = shiny::reactiveVal()
 )
 }
 \arguments{
@@ -62,6 +63,14 @@ its filter information to the filter sidebar}
 
 \item{place_filter}{supply the output of \code{\link[=place_server]{place_server()}} here to add
 its filter information to the filter sidebar}
+
+\item{reset}{A \code{\link[shiny:reactive]{shiny::reactive()}} or \code{\link[shiny:reactiveVal]{shiny::reactiveVal()}} used as an external
+trigger to reset all filter inputs to their initial values, clear the displayed
+filter info, and return the unfiltered dataset. The reset fires whenever the
+reactive emits a non-\code{NULL} value (e.g. update it with \code{Sys.time()} or an
+incrementing counter from an \code{actionButton}). The same value is propagated to
+the returned \code{filter_reset} reactive so that connected modules (time, place)
+can clear their own click filters.}
 }
 \value{
 A UI \code{wrapper} with date filters, group filters, and action buttons.

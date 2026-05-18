@@ -46,7 +46,9 @@ place_server(
 \arguments{
 \item{id}{Module id. Must be the same in both the UI and server function to link the two.}
 
-\item{geo_data}{A list of named lists containing spatial sf dataframes and other information for different geographical levels.}
+\item{geo_data}{An epishiny geo layer object or a list of epishiny geo layer objects created with \code{\link[=geo_layer]{geo_layer()}}.
+Each layer will be available as a selectable option in the map options to visualise data across different administrative levels.
+See \code{?geo_layer} for details on how to set up your geo data.}
 
 \item{count_vars}{If data is aggregated, variable name(s) of count variable(s) in data. If more than one is variable provided,
 a select input will appear in the options dropdown. If named, names are used as variable labels.}

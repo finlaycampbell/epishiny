@@ -114,6 +114,13 @@ filter_ui <- function(
 #'  its filter information to the filter sidebar
 #' @param place_filter supply the output of [place_server()] here to add
 #'  its filter information to the filter sidebar
+#' @param reset A [shiny::reactive()] or [shiny::reactiveVal()] used as an external
+#'  trigger to reset all filter inputs to their initial values, clear the displayed
+#'  filter info, and return the unfiltered dataset. The reset fires whenever the
+#'  reactive emits a non-`NULL` value (e.g. update it with `Sys.time()` or an
+#'  incrementing counter from an `actionButton`). The same value is propagated to
+#'  the returned `filter_reset` reactive so that connected modules (time, place)
+#'  can clear their own click filters.
 #'
 #' @return The server function returns a list containing reactive functions named `df`
 #'   and `filter_info`. Access these as `app_data$df` and `app_data$filter_info`
@@ -129,7 +136,8 @@ filter_server <- function(
   date_vars = NULL,
   group_vars = NULL,
   time_filter = shiny::reactiveVal(),
-  place_filter = shiny::reactiveVal()
+  place_filter = shiny::reactiveVal(),
+  reset = shiny::reactiveVal()
 ) {
   moduleServer(
     id,
@@ -280,7 +288,7 @@ filter_server <- function(
           if (length(date_vars) == 1) {
             enabled_dates <- date_vars
           } else {
-            enabled_dates <- purrr::keep(date_vars, ~ isolate(input[[paste0(.x, "_enabled")]]))
+            enabled_dates <- purrr::keep(date_vars, ~ isTRUE(input[[paste0(.x, "_enabled")]]))
           }
 
           if (length(enabled_dates)) {
@@ -298,7 +306,7 @@ filter_server <- function(
                 # For single date variable, check include_na switch
                 # For multiple date variables, missing dates are excluded
                 if (length(date_vars) == 1) {
-                  include_na <- isolate(input[[paste0(.x, "_include_na")]])
+                  include_na <- input[[paste0(.x, "_include_na")]]
                   if (isTruthy(include_na)) {
                     date_match <- date_match | is.na(df_out[[.x]])
                   }
@@ -320,7 +328,8 @@ filter_server <- function(
         select_group_server(
           id = "group-filters",
           data_r = df_date_filtered,
-          vars_r = unname(group_vars)
+          vars_r = unname(group_vars),
+          reset_external = reset
         )
       } else {
         # No group filtering, return date-filtered data
@@ -411,6 +420,36 @@ filter_server <- function(
         fi <- format_filter_info(fi, tf, pf)
         shiny::helpText(shiny::HTML(fi))
       })
+
+      # ==========================================================================
+      # EXTERNAL RESET TRIGGER
+      # ==========================================================================
+      observe({
+        # Reset date inputs to the full data range
+        if (length(date_vars)) {
+          purrr::walk(date_vars, ~ update_date_filter(session, .x, df_mod()))
+          # For multiple date variables, also switch off the enable toggles
+          if (length(date_vars) > 1) {
+            purrr::walk(
+              unname(date_vars),
+              ~ bslib::update_switch(
+                id = paste0(.x, "_enabled"),
+                value = FALSE,
+                session = session
+              )
+            )
+          }
+        }
+
+        # group filter resets are handled internally in the select_group_server
+        # function via the reset_external trigger
+
+        rv$filter_info <- NULL
+        rv$df <- df_mod()
+        # Propagate to connected modules so click filters are cleared too
+        rv$filter_reset <- reset()
+      }) |>
+        shiny::bindEvent(reset(), ignoreInit = TRUE, ignoreNULL = TRUE)
 
       # return data to main app ===========================
       list(
@@ -534,12 +573,19 @@ select_group_ui <- function(
 #'  must correspond to variables listed in `params`. Can be a
 #'  [shiny::reactive()] function, but values must be included in the initial ones (in `params`).
 #' @param selected_r [shiny::reactive()] function returning a named list with selected values to set.
+#' @param reset_external optional reactive trigger to reset filter values
 #'
 #' @noRd
 #' @importFrom shiny observeEvent observe reactiveValues reactive is.reactive isolate isTruthy
 #' @importFrom shinyWidgets updateVirtualSelect
 #' @importFrom rlang %||%
-select_group_server <- function(id, data_r, vars_r, selected_r = reactive(list())) {
+select_group_server <- function(
+  id,
+  data_r,
+  vars_r,
+  selected_r = reactive(list()),
+  reset_external = shiny::reactiveVal()
+) {
   moduleServer(
     id = id,
     module = function(input, output, session) {
@@ -650,6 +696,20 @@ select_group_server <- function(id, data_r, vars_r, selected_r = reactive(list()
         bindEvent(rv$data, rv$vars, once = TRUE)
 
       observeEvent(input$reset_all, {
+        lapply(
+          X = rv$vars,
+          FUN = function(x) {
+            vals <- sort(unique(rv$data[[x]]))
+            shinyWidgets::updateVirtualSelect(
+              session = session,
+              inputId = x,
+              choices = vals
+            )
+          }
+        )
+      })
+
+      observeEvent(reset_external(), {
         lapply(
           X = rv$vars,
           FUN = function(x) {

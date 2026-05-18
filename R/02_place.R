@@ -5,7 +5,9 @@
 #' @rdname place
 #'
 #' @param id Module id. Must be the same in both the UI and server function to link the two.
-#' @param geo_data A list of named lists containing spatial sf dataframes and other information for different geographical levels.
+#' @param geo_data An epishiny geo layer object or a list of epishiny geo layer objects created with [geo_layer()].
+#'   Each layer will be available as a selectable option in the map options to visualise data across different administrative levels.
+#'   See `?geo_layer` for details on how to set up your geo data.
 #' @param count_vars If data is aggregated, variable name(s) of count variable(s) in data. If more than one is variable provided,
 #'  a select input will appear in the options dropdown. If named, names are used as variable labels.
 #' @param group_vars Character vector of categorical variable names. If provided, a select input will appear
