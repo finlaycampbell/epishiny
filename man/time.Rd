@@ -10,6 +10,7 @@ time_ui(
   date_vars,
   count_vars = NULL,
   group_vars = NULL,
+  group_var_default = NULL,
   title = "Time",
   icon = bsicons::bs_icon("calendar2-week"),
   tooltip = NULL,
@@ -17,6 +18,7 @@ time_ui(
   date_lab = "Date axis",
   date_int_lab = "Date interval",
   date_intervals = c(Day = "day", Week = "week", Month = "month"),
+  date_interval_default = ifelse("week" \%in\% date_intervals, "week", date_intervals[1]),
   count_vars_lab = "Indicator",
   groups_lab = "Group data by",
   no_grouping_lab = "No grouping",
@@ -60,6 +62,9 @@ a select input will appear in the options dropdown. If named, names are used as 
 in the options dropdown allowing for data groups to be visualised as stacked bars on the epicurve.
 If named, names are used as variable labels.}
 
+\item{group_var_default}{Character string of variable name in \code{group_vars} to use as default grouping variable.
+If NULL, no default is set and "No grouping" option will be selected by default.}
+
 \item{title}{Header title for the card.}
 
 \item{icon}{The icon to display next to the title.}
@@ -74,6 +79,9 @@ If named, names are used as variable labels.}
 
 \item{date_intervals}{Character vector with choices for date aggregation intervals passed to the \code{unit}
 argument of \link[lubridate:round_date]{lubridate::floor_date}. If named, names are used as labels. Default is c('day', 'week', 'year').}
+
+\item{date_interval_default}{Character string of default date interval to use. Must be one of the values provided in \code{date_intervals}.
+Defaults to "week" if available, otherwise the first value in \code{date_intervals}.}
 
 \item{count_vars_lab}{text label for the aggregate count variables input.}
 

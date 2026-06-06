@@ -11,6 +11,8 @@
 #' @param group_vars Character vector of categorical variable names. If provided, a select input will appear
 #'  in the options dropdown allowing for data groups to be visualised as stacked bars on the epicurve.
 #'  If named, names are used as variable labels.
+#' @param group_var_default Character string of variable name in `group_vars` to use as default grouping variable.
+#'   If NULL, no default is set and "No grouping" option will be selected by default.
 #' @param title Header title for the card.
 #' @param icon The icon to display next to the title.
 #' @param tooltip additional title hover text information
@@ -19,6 +21,8 @@
 #' @param date_int_lab text label for the date interval input.
 #' @param date_intervals Character vector with choices for date aggregation intervals passed to the `unit`
 #'  argument of [lubridate::floor_date]. If named, names are used as labels. Default is c('day', 'week', 'year').
+#' @param date_interval_default Character string of default date interval to use. Must be one of the values provided in `date_intervals`.
+#'   Defaults to "week" if available, otherwise the first value in `date_intervals`.
 #' @param count_vars_lab text label for the aggregate count variables input.
 #' @param groups_lab text label for the grouping variable input.
 #' @param no_grouping_lab text label for the no grouping option in the grouping input.
@@ -42,6 +46,7 @@ time_ui <- function(
   date_vars,
   count_vars = NULL,
   group_vars = NULL,
+  group_var_default = NULL,
   title = "Time",
   icon = bsicons::bs_icon("calendar2-week"),
   tooltip = NULL,
@@ -49,6 +54,7 @@ time_ui <- function(
   date_lab = "Date axis",
   date_int_lab = "Date interval",
   date_intervals = c("Day" = "day", "Week" = "week", "Month" = "month"),
+  date_interval_default = ifelse("week" %in% date_intervals, "week", date_intervals[1]),
   count_vars_lab = "Indicator",
   groups_lab = "Group data by",
   no_grouping_lab = "No grouping",
@@ -84,9 +90,11 @@ time_ui <- function(
     date_lab = date_lab,
     date_int_lab = date_int_lab,
     date_intervals = date_intervals,
+    date_interval_default = date_interval_default,
     count_vars = count_vars,
     count_vars_lab = count_vars_lab,
     group_vars = group_vars,
+    group_var_default = group_var_default,
     groups_lab = groups_lab,
     no_grouping_lab = no_grouping_lab,
     bar_stacking_lab = bar_stacking_lab,
@@ -923,9 +931,11 @@ time_options_ui <- function(
   date_lab,
   date_int_lab,
   date_intervals,
+  date_interval_default,
   count_vars,
   count_vars_lab,
   group_vars,
+  group_var_default,
   groups_lab,
   no_grouping_lab,
   bar_stacking_lab,
@@ -948,7 +958,7 @@ time_options_ui <- function(
       size = "sm",
       status = "outline-primary",
       choices = date_intervals,
-      selected = ifelse("week" %in% date_intervals, "week", date_intervals[1]),
+      selected = date_interval_default,
       width = "100%"
     ),
     selectInput(
@@ -963,6 +973,7 @@ time_options_ui <- function(
       ns("group"),
       label = groups_lab,
       choices = c(purrr::set_names("n", no_grouping_lab), group_vars),
+      selected = ifelse(is.null(group_var_default), "n", group_var_default),
       multiple = FALSE,
       selectize = FALSE,
       width = "100%"

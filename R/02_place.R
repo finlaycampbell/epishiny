@@ -1094,7 +1094,13 @@ add_choropleth_layer <- function(map, df_map, choro_settings, lab) {
       type = "error"
     )
   } else {
-    bins$result <- unique(bins$result$brks)
+    brks <- unique(bins$result$brks)
+    # some break styles (e.g. "sd") can produce breaks below the data minimum,
+    # even negative values, which is invalid for case counts / attack rates.
+    # clamp breaks to the data range so they start at the minimum observed value.
+    rng <- range(choro_values, na.rm = TRUE)
+    brks <- brks[brks > rng[1] & brks < rng[2]]
+    bins$result <- sort(unique(c(rng[1], brks, rng[2])))
   }
 
   # Create color palette
