@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# epishiny
+# epishiny <a href="https://epicentre-msf.github.io/epishiny/"><img src="man/figures/logo.png" align="right" height="138" alt="epishiny website" /></a>
 
 <!-- badges: start -->
 
@@ -44,9 +44,9 @@ remotes::install_github("epicentre-msf/epishiny", dependencies = TRUE)
 ## Demo Dashboard
 
 Launch a demo dashboard with examples of every epishiny module with the
-`launch_demo_dashboard()` function. The code for this dashboard can be
-found in
-[inst/examples/demo](https://github.com/epicentre-msf/epishiny/tree/main/inst/examples/demo)
+`launch_demo_dashboard()` function. The code for the example dashboards
+can be found in
+[inst/examples/](https://github.com/epicentre-msf/epishiny/tree/main/inst/examples/)
 of the package repository.
 
 <img src="man/figures/dashboard.png" width="100%" />
