@@ -697,6 +697,15 @@ time_server <- function(
 }
 
 #' @noRd
+get_time_date_sequence <- function(dates, date_interval) {
+  dates <- dates[!is.na(dates)]
+  if (!length(dates)) {
+    return(as.Date(character(0)))
+  }
+  seq.Date(min(dates), max(dates), by = date_interval)
+}
+
+#' @noRd
 get_time_df <- function(
   df,
   is_agg,
@@ -711,6 +720,9 @@ get_time_df <- function(
       "x" = "You must supply a `count_var` variable name if data is aggregated"
     ))
   }
+
+  date_seq <- get_time_date_sequence(df[[date_var]], date_interval)
+
   if (!is_grouped) {
     if (is_agg) {
       df <- df %>%
@@ -719,15 +731,17 @@ get_time_df <- function(
       df <- df %>% dplyr::count(.data[[date_var]])
     }
     df <- df %>%
-      tidyr::drop_na() %>%
-      tidyr::complete(
-        !!rlang::sym(date_var) := seq.Date(
-          min(!!rlang::sym(date_var), na.rm = TRUE),
-          max(!!rlang::sym(date_var), na.rm = TRUE),
-          by = date_interval
-        ),
-        fill = list(n = 0)
-      ) %>%
+      tidyr::drop_na()
+
+    if (length(date_seq)) {
+      df <- df %>%
+        tidyr::complete(
+          !!rlang::sym(date_var) := date_seq,
+          fill = list(n = 0)
+        )
+    }
+
+    df <- df %>%
       dplyr::arrange(.data[[date_var]]) %>%
       dplyr::mutate(n_c = cumsum(.data$n))
   } else {
@@ -738,16 +752,18 @@ get_time_df <- function(
       df <- df %>% dplyr::count(.data[[date_var]], .data[[group_var]])
     }
     df <- df %>%
-      tidyr::drop_na() %>%
-      tidyr::complete(
-        !!rlang::sym(date_var) := seq.Date(
-          min(!!rlang::sym(date_var), na.rm = TRUE),
-          max(!!rlang::sym(date_var), na.rm = TRUE),
-          by = date_interval
-        ),
-        tidyr::nesting(!!rlang::sym(group_var)),
-        fill = list(n = 0)
-      ) %>%
+      tidyr::drop_na()
+
+    if (length(date_seq)) {
+      df <- df %>%
+        tidyr::complete(
+          !!rlang::sym(date_var) := date_seq,
+          tidyr::nesting(!!rlang::sym(group_var)),
+          fill = list(n = 0)
+        )
+    }
+
+    df <- df %>%
       dplyr::group_by(.data[[group_var]]) %>%
       dplyr::arrange(.data[[date_var]]) %>%
       dplyr::mutate(n_c = cumsum(.data$n)) %>%

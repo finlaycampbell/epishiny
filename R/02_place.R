@@ -28,6 +28,12 @@
 #' @param no_grouping_lab text label for the no grouping option in the
 #'   grouping input.
 #' @param circle_size_lab text label for the circle size slider input.
+#' @param circle_size_default Initial value for the circle size slider.
+#' @param geo_level_default Initial geo boundary level (\code{layer_name}).
+#' @param circle_var_default Initial pie/circle size variable (\code{"none"} or a
+#'   \code{count_vars} value).
+#' @param group_var_default Initial pie grouping variable (column name from
+#'   \code{group_vars}).
 #' @param opts_btn_lab text label for the dropdown menu button.
 #' @param download_lab text label for the download button.
 #' @param full_screen Add button to card to with the option to enter
@@ -50,6 +56,10 @@ place_ui <- function(
                      groups_lab = "Group data by",
                      no_grouping_lab = "No grouping",
                      circle_size_lab = "Circle size multiplyer",
+                     circle_size_default = 7,
+                     geo_level_default = NULL,
+                     circle_var_default = "none",
+                     group_var_default = NULL,
                      opts_btn_lab = "options",
                      download_lab = "download",
                      full_screen = TRUE
@@ -76,6 +86,14 @@ place_ui <- function(
     geo_levels <- geo_data$layer_name
   } else {
     geo_levels <- purrr::map_chr(geo_data, "layer_name")
+  }
+
+  geo_level_selected <- geo_levels[1]
+  if (
+    !is.null(geo_level_default) &&
+    geo_level_default %in% geo_levels
+  ) {
+    geo_level_selected <- geo_level_default
   }
 
   if (length(tooltip)) {
@@ -108,7 +126,8 @@ place_ui <- function(
             label = geo_lab,
             size = "sm",
             status = "outline-dark",
-            choices = geo_levels
+            choices = geo_levels,
+            selected = geo_level_selected
           ),
           selectInput(
             ns("choro_var"),
@@ -122,6 +141,7 @@ place_ui <- function(
             ns("circle_var"),
             label = circle_vars_lab,
             choices = c("None" = "none", count_vars),
+            selected = circle_var_default,
             multiple = FALSE,
             selectize = FALSE,
             width = 200
@@ -130,6 +150,16 @@ place_ui <- function(
             ns("var"),
             label = groups_lab,
             choices = c(purrr::set_names("n", no_grouping_lab), group_vars),
+            selected = if (
+              !is.null(group_var_default) &&
+              group_var_default %in% unname(group_vars)
+            ) {
+              group_var_default
+            } else if (length(group_vars)) {
+              unname(group_vars[1])
+            } else {
+              "n"
+            },
             multiple = FALSE,
             selectize = FALSE,
             width = 200
@@ -139,7 +169,7 @@ place_ui <- function(
             label = circle_size_lab,
             min = 0,
             max = 10,
-            value = 3,
+            value = circle_size_default,
             step = 1,
             width = 200
           )
@@ -190,6 +220,14 @@ place_ui <- function(
 #'   a [shiny::reactive()] here to filter the data by click events on
 #'   the time module bar chart (clicking a bar will filter the data to
 #'   the period the bar represents)
+#' @param tooltip_vars Named character vector of numeric columns to show in
+#'   polygon tooltips in addition to the choropleth indicator.
+#' @param pie_palette Optional named list of named colour vectors keyed by
+#'   grouping variable name (values keyed by pie slice label).
+#' @param tooltip_groups Optional named list mapping tooltip labels to
+#'   \code{confirmed} and \code{suspected} column names for breakdown display.
+#' @param circle_var_default Initial pie/circle size variable.
+#' @param group_var_default Initial pie grouping variable.
 #'
 #' @rdname place
 #'
@@ -211,7 +249,12 @@ place_server <- function(
     export_height = 650,
     time_filter = shiny::reactiveVal(),
     filter_info = shiny::reactiveVal(),
-    filter_reset = shiny::reactiveVal()
+    filter_reset = shiny::reactiveVal(),
+    tooltip_vars = NULL,
+    pie_palette = NULL,
+    tooltip_groups = NULL,
+    circle_var_default = "none",
+    group_var_default = NULL
 ) {
   shiny::moduleServer(
     id,
@@ -232,54 +275,87 @@ place_server <- function(
         shinyjs::hide("var")
       }
 
-      # keep only numeric count variables for circle aesthetic
+      # Configure choropleth / circle variable choices.
+      # Cannot call a reactive df() here (no reactive context yet).
       if (!is.null(count_vars)) {
-        circle_vars <- count_vars
-        circle_vars_numeric <- purrr:::map_lgl(df[circle_vars], is.numeric)
-        if (any(!circle_vars_numeric)) {
-          cli::cli_warn(c(
-            paste0(
-              "The following variable{?s} in {.arg circle_vars} ",
-              "{?is/are} not numeric and {?is/were} dropped: ",
-              "{.val {circle_vars[!circle_vars_numeric]}}."
-            ),
-            "x" = paste0(
-              "All variables in {.arg circle_vars} are expected",
-              " to be numeric."
-            ),
-            "i" = paste0(
-              "Please check: {.val ",
-              "{circle_vars[!circle_vars_numeric]}} and ensure {?it/they} ",
-              "{?is/are} numeric."
-            )
-          ))
+        metric_cols <- unname(count_vars)
+        if (shiny::is.reactive(df)) {
+          circle_vars_numeric <- stats::setNames(
+            rep(TRUE, length(metric_cols)),
+            names(count_vars)
+          )
+        } else {
+          circle_vars_numeric <- purrr::map_lgl(
+            df[metric_cols],
+            is.numeric
+          )
+          names(circle_vars_numeric) <- names(count_vars)
+          if (any(!circle_vars_numeric)) {
+            cli::cli_warn(c(
+              paste0(
+                "The following variable{?s} in {.arg count_vars} ",
+                "{?is/are} not numeric and {?is/were} dropped: ",
+                "{.val {count_vars[!circle_vars_numeric]}}."
+              ),
+              "x" = paste0(
+                "All variables in {.arg count_vars} used for circles",
+                " are expected to be numeric."
+              ),
+              "i" = paste0(
+                "Please check: {.val ",
+                "{count_vars[!circle_vars_numeric]}} and ensure {?it/they} ",
+                "{?is/are} numeric."
+              )
+            ))
+          }
         }
-        circle_vars <- c("None" = "none", circle_vars[circle_vars_numeric])
-        updateSelectInput(session, "circle_var", choices = circle_vars)
-      } else {
-        circle_vars <- c("None" = "none")
-      }
 
-      # all count vars mapped to choropleth
-      choro_vars <- count_vars
-      if (length(choro_vars) < 2) {
-        shinyjs::hide("choro_var")
-      }
-
-      # only numeric count vars mapped to circle
-      circle_vars <- count_vars
-      if(!is.null(circle_vars)) {
+        choro_vars <- count_vars
         circle_vars <- c(
           "None" = "none",
-          circle_vars[purrr:::map_lgl(df[circle_vars], is.numeric)]
+          count_vars[circle_vars_numeric]
+        )
+
+        if (length(choro_vars) < 2L) {
+          shinyjs::hide("choro_var")
+        }
+        if (length(circle_vars) < 3L) {
+          shinyjs::hide("circle_var")
+        }
+
+        shiny::updateSelectInput(
+          session,
+          "choro_var",
+          choices = count_vars,
+          selected = metric_cols[1L]
+        )
+        circle_selected <- circle_var_default
+        if (!circle_selected %in% unname(circle_vars)) {
+          circle_selected <- "none"
+        }
+        shiny::updateSelectInput(
+          session,
+          "circle_var",
+          choices = circle_vars,
+          selected = circle_selected
         )
       } else {
+        choro_vars <- NULL
         circle_vars <- c("None" = "none")
       }
-
-      # circle_vars have to be numeric
-      if (length(circle_vars) < 3) {
-        shinyjs::hide("circle_var")
+      if (length(group_vars)) {
+        group_selected <- group_var_default
+        if (
+          is.null(group_selected) ||
+          !group_selected %in% unname(group_vars)
+        ) {
+          group_selected <- unname(group_vars[1])
+        }
+        shiny::updateSelectInput(
+          session,
+          "var",
+          selected = group_selected
+        )
       }
 
       # check for chrome browser for map exports
@@ -455,21 +531,38 @@ place_server <- function(
         # is the data pre-aggregated
         is_agg <- as.logical(length(choro_vars))
 
+        sum_vars <- unique(c(
+          unname(count_vars),
+          if (!is.null(tooltip_vars)) unname(tooltip_vars) else character(0),
+          if (length(tooltip_groups)) {
+            unlist(tooltip_groups, use.names = FALSE)
+          } else {
+            character(0)
+          }
+        ))
+
         df_counts <- get_geo_counts(
           df = df_mod(),
           is_agg = is_agg,
           geo_var = rv$geo_col,
           choro_var = rv$choro_var,
           circle_var = rv$circle_var,
-          geo_summarise = geo_summarise
+          geo_summarise = geo_summarise,
+          count_vars = count_vars,
+          sum_vars = sum_vars
         )
 
         df_out <- rv$sf %>%
           dplyr::mutate(name = !!rv$geo_name_col_sym) %>%
           dplyr::select(dplyr::any_of(c(rv$join_cols, rv$geo_pop_var, "name", "lon", "lat"))) %>%
           dplyr::left_join(df_counts, by = rv$geo_join) %>%
-          dplyr::mutate(dplyr::across(dplyr::where(is.numeric), as.double))
-          # dplyr::mutate(dplyr::across(dplyr::where(is.double), ~ dplyr::if_else(is.na(.x), 0, .x)))
+          dplyr::mutate(dplyr::across(dplyr::where(is.numeric), as.double)) %>%
+          dplyr::mutate(
+            dplyr::across(
+              dplyr::where(is.double),
+              ~ dplyr::if_else(is.na(.x), 0, .x)
+            )
+          )
 
         ## no longer calculating attack rate - using instead
         ## explicitly specified second variable for circle
@@ -524,12 +617,7 @@ place_server <- function(
           leaflet::clearGroup("Boundaries") %>%
           leaflet::clearControls()
 
-        # change group layers depening on if attack rate is available
-        if (is.null(geo_select()$pop_var)) {
-          ogs <- c("Circles")
-        } else {
-          ogs <- c("Choropleth", "Circles")
-        }
+        ogs <- c("Choropleth", "Circles")
 
         leaflet::leafletProxy("map", session) %>%
           leaflet::addLayersControl(
@@ -567,7 +655,9 @@ place_server <- function(
         tt <- make_leaf_tooltip(
           boundaries,
           choro_lab = rv$choro_lab,
-          circle_lab = rv$circle_lab
+          circle_lab = rv$circle_lab,
+          metric_vars = if (!is.null(tooltip_vars)) tooltip_vars else count_vars,
+          tooltip_groups = tooltip_groups
         )
 
         leaflet::leafletProxy("map", session) %>%
@@ -600,7 +690,7 @@ place_server <- function(
         if (is.numeric(df_map$choro_value))
           df_map <- dplyr::filter(df_map, .data$choro_value > 0)
 
-        if (isTruthy(nrow(df_map) > 0) & !is.null(rv$geo_pop_var)) {
+        if (isTruthy(nrow(df_map) > 0)) {
 
           # use continuous or discrete palette depending on variable
           is_numeric <- is.numeric(df_map$choro_value)
@@ -659,31 +749,27 @@ place_server <- function(
         req(nrow(df_map) > 0 & rv$circle_var != "none")
 
         if (isTruthy("Circles" %in% isolate(input$map_groups)) | minicharts_init()) {
-
-          chart_data <- dplyr::select(df_map, circle_value, grouping, rv$join_cols) |>
-            pivot_wider(values_from = "circle_value", names_from = "grouping") |>
-            arrange(.data[[rv$join_cols]]) |>
-            dplyr::select(-rv$join_cols)
-
-          df_map <- group_by(df_map, across(-c(grouping, circle_value))) |>
-            summarise(circle_value = sum(circle_value), .groups = "drop")
-
-          pie_width <- (input$circle_size_mult * 10) *
-            (sqrt(df_map$circle_value) / sqrt(max(df_map$circle_value)))
+          layers <- prepare_map_minichart_layers(
+            df_map = df_map,
+            join_cols = rv$join_cols,
+            circle_size_mult = input$circle_size_mult,
+            pie_palette = pie_palette,
+            group_var = if (rv$map_var == "n") NULL else rv$map_var
+          )
 
           leaflet::leafletProxy("map", session) %>%
             leaflet.minicharts::addMinicharts(
-              lng = df_map$lon,
-              lat = df_map$lat,
-              layerId = df_map$name,
-              chartdata = chart_data,
+              lng = layers$df_map$lon,
+              lat = layers$df_map$lat,
+              layerId = layers$df_map$name,
+              chartdata = layers$chart_data,
               opacity = .7,
-              fillColor = epi_pals()$d310[1],
-              colorPalette = epi_pals()$d310,
+              fillColor = layers$palette[1],
+              colorPalette = layers$palette,
               legend = TRUE,
               showLabels = TRUE,
               type = "pie",
-              width = pie_width
+              width = layers$pie_width
             )
 
           minicharts_init(FALSE)
@@ -700,29 +786,27 @@ place_server <- function(
           df_map <- df_map_circles()
           req(nrow(df_map) > 0 & rv$circle_var != "none")
 
-          chart_data <- dplyr::select(df_map, circle_value, grouping, rv$join_cols) |>
-            pivot_wider(values_from = "circle_value", names_from = "grouping") |>
-            arrange(.data[[rv$join_cols]]) |>
-            dplyr::select(-rv$join_cols)
+          layers <- prepare_map_minichart_layers(
+            df_map = df_map,
+            join_cols = rv$join_cols,
+            circle_size_mult = input$circle_size_mult,
+            pie_palette = pie_palette,
+            group_var = if (rv$map_var == "n") NULL else rv$map_var
+          )
 
-          df_map <- group_by(df_map, across(-c(grouping, circle_value))) |>
-            summarise(circle_value = sum(circle_value), .groups = "drop")
-
-          pie_width <- (input$circle_size_mult * 10) *
-            (sqrt(df_map$circle_value) / sqrt(max(df_map$circle_value)))
           leaflet::leafletProxy("map", session) %>%
             leaflet.minicharts::addMinicharts(
-              lng = df_map$lon,
-              lat = df_map$lat,
-              layerId = df_map$name,
-              chartdata = chart_data,
+              lng = layers$df_map$lon,
+              lat = layers$df_map$lat,
+              layerId = layers$df_map$name,
+              chartdata = layers$chart_data,
               opacity = .7,
-              fillColor = epi_pals()$d310[1],
-              colorPalette = epi_pals()$d310,
+              fillColor = layers$palette[1],
+              colorPalette = layers$palette,
               legend = TRUE,
               showLabels = TRUE,
               type = "pie",
-              width = pie_width
+              width = layers$pie_width
             )
           minicharts_on(TRUE)
         }
@@ -753,7 +837,6 @@ place_server <- function(
         if (n_missing == 0) {
           return(NULL)
         } else {
-          browser()
           lab_missing <- glue::glue("{scales::number(n_missing)} ({scales::percent(pcnt_missing, accuracy = 1)})")
           glue::glue("Missing/Unknown {rv$geo_level_name} data for {lab_missing} {tolower(rv$choro_lab)}")
         }
@@ -861,32 +944,28 @@ place_server <- function(
             req(rv$circle_var != "none")
             df_circles <- df_map_circles()
 
-            chart_data <- dplyr::select(df_circles, circle_value, grouping, rv$join_cols) |>
-              pivot_wider(values_from = "circle_value", names_from = "grouping") |>
-              arrange(.data[[rv$join_cols]]) |>
-              dplyr::select(-rv$join_cols)
-
-            df_circles <- group_by(df_circles, across(-c(grouping, circle_value))) |>
-              summarise(circle_value = sum(circle_value), .groups = "drop")
-
-            # * 7 instead of * 10 like in the app map because
-            # circles are coming out larger in the image export
-            pie_width <- (input$circle_size_mult * 7) *
-              (sqrt(df_circles$circle_value) / sqrt(max(df_circles$circle_value)))
+            layers <- prepare_map_minichart_layers(
+              df_map = df_circles,
+              join_cols = rv$join_cols,
+              circle_size_mult = input$circle_size_mult,
+              pie_palette = pie_palette,
+              group_var = if (rv$map_var == "n") NULL else rv$map_var,
+              size_factor = 18
+            )
 
             leaf_out <- leaf_out %>%
               leaflet.minicharts::addMinicharts(
-                lng = df_circles$lon,
-                lat = df_circles$lat,
-                layerId = df_circles$name,
-                chartdata = chart_data,
+                lng = layers$df_map$lon,
+                lat = layers$df_map$lat,
+                layerId = layers$df_map$name,
+                chartdata = layers$chart_data,
                 opacity = .8,
-                fillColor = epi_pals()$d310[1],
-                colorPalette = epi_pals()$d310,
+                fillColor = layers$palette[1],
+                colorPalette = layers$palette,
                 legend = TRUE,
                 showLabels = TRUE,
                 type = "pie",
-                width = pie_width
+                width = layers$pie_width
               )
 
           }
@@ -1091,19 +1170,98 @@ get_geo_counts <- function(df,
                            geo_var,
                            choro_var,
                            circle_var,
-                           geo_summarise) {
+                           geo_summarise,
+                           count_vars = NULL,
+                           sum_vars = NULL) {
   if (is_agg) {
-    df |>
-      group_by(.data[[geo_var]]) |>
-      summarise(
-        choro_value = geo_summarise(.data[[choro_var]]),
-        circle_value =
-          if(circle_var %in% names(df)) geo_summarise(.data[[circle_var]]) else 0
+    metric_cols <- unique(c(
+      choro_var,
+      circle_var,
+      unname(count_vars),
+      sum_vars
+    ))
+    metric_cols <- metric_cols[metric_cols %in% names(df)]
+
+    df_out <- df |>
+      dplyr::group_by(.data[[geo_var]]) |>
+      dplyr::summarise(
+        dplyr::across(
+          dplyr::all_of(metric_cols),
+          ~ geo_summarise(.x),
+          .names = "{.col}"
+        ),
+        .groups = "drop"
+      )
+
+    df_out |>
+      dplyr::mutate(
+        choro_value = .data[[choro_var]],
+        circle_value = if (circle_var %in% names(df)) {
+          .data[[circle_var]]
+        } else {
+          0
+        }
       )
   } else {
     dplyr::count(df, .data[[geo_var]], name = "choro_value") |>
       dplyr::mutate(circle_value = choro_value)
   }
+}
+
+#' Build pie chart data and colour palette for map minicharts
+#' @noRd
+prepare_map_minichart_layers <- function(
+    df_map,
+    join_cols,
+    circle_size_mult,
+    pie_palette = NULL,
+    group_var = NULL,
+    size_factor = 25) {
+  if (!"grouping" %in% names(df_map)) {
+    df_map <- dplyr::mutate(df_map, grouping = "total")
+  }
+
+  chart_data <- dplyr::select(
+    df_map,
+    circle_value,
+    grouping,
+    dplyr::all_of(join_cols)
+  ) |>
+    tidyr::pivot_wider(
+      values_from = "circle_value",
+      names_from = "grouping",
+      values_fn = sum
+    ) |>
+    dplyr::arrange(dplyr::across(dplyr::all_of(join_cols))) |>
+    dplyr::select(-dplyr::all_of(join_cols))
+
+  df_map <- dplyr::group_by(
+    df_map,
+    dplyr::across(-c(.data$grouping, .data$circle_value))
+  ) |>
+    dplyr::summarise(circle_value = sum(.data$circle_value), .groups = "drop")
+
+  max_val <- max(df_map$circle_value, na.rm = TRUE)
+  pie_width <- if (is.finite(max_val) && max_val > 0) {
+    (circle_size_mult * size_factor) *
+      (sqrt(df_map$circle_value) / sqrt(max_val))
+  } else {
+    rep(0, nrow(df_map))
+  }
+
+  slice_names <- names(chart_data)
+  pal <- resolve_minichart_palette(
+    slice_names,
+    group_var = group_var,
+    pie_palette = pie_palette
+  )
+
+  list(
+    df_map = df_map,
+    chart_data = chart_data,
+    pie_width = pie_width,
+    palette = pal
+  )
 }
 
 #' @noRd
@@ -1121,36 +1279,108 @@ get_map_circle_df <- function(df,
                               geo_summarise) {
 
   if (!is_grouped) {
-    df <- dplyr::mutate(df_geo_counts, grouping = "nogroup") |>
-      dplyr::select(-choro_value)
+    join_keys <- if (rlang::is_named(geo_join)) {
+      names(geo_join)
+    } else {
+      geo_join
+    }
+    df_geo_flat <- sf::st_drop_geometry(df_geo_counts)
+    meta_cols <- intersect(
+      c(join_keys, "name", "lon", "lat"),
+      names(df_geo_flat)
+    )
+
+    df <- dplyr::mutate(df_geo_flat, grouping = "nogroup") |>
+      dplyr::select(-dplyr::any_of("choro_value")) |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(join_keys))) |>
+      dplyr::summarise(
+        circle_value = dplyr::first(.data$circle_value),
+        grouping = "nogroup",
+        dplyr::across(
+          dplyr::all_of(setdiff(meta_cols, join_keys)),
+          dplyr::first
+        ),
+        .groups = "drop"
+      )
   } else {
+    df_pie <- df
+    # With pre-computed 0/1 indicators, restrict pie slices to rows that
+    # contribute to the selected circle metric (e.g. deaths only for death vars).
+    if (
+      is_agg &&
+      circle_var %in% names(df_pie) &&
+      is.numeric(df_pie[[circle_var]])
+    ) {
+      df_pie <- dplyr::filter(df_pie, .data[[circle_var]] > 0)
+    }
+
     if (is_agg) {
-      df <- df |>
+      df <- df_pie |>
         # summarise using geo_summarise function across groupings
-        group_by(.data[[geo_var]], grouping = .data[[group_var]]) |>
-        summarise(
+        dplyr::group_by(.data[[geo_var]], grouping = .data[[group_var]]) |>
+        dplyr::summarise(
           circle_value =
-            if(circle_var %in% names(df)) geo_summarise(.data[[circle_var]]) else 0
+            if (circle_var %in% names(df_pie)) {
+              geo_summarise(.data[[circle_var]])
+            } else {
+              0
+            },
+          .groups = "drop"
         )
     } else {
       df <- dplyr::count(
-        df,
+        df_pie,
         .data[[geo_var]],
         grouping = .data[[group_var]],
         name = "circle_value"
       )
     }
+    join_keys <- if (rlang::is_named(geo_join)) {
+      names(geo_join)
+    } else {
+      geo_join
+    }
+
+    df_geo_flat <- sf::st_drop_geometry(df_geo_counts)
+    meta_cols <- intersect(
+      c(join_keys, "name", "lon", "lat"),
+      names(df_geo_flat)
+    )
+
     df <- dplyr::left_join(
-      dplyr::select(df_geo_counts, -c(choro_value, circle_value)),
-      df, by = geo_join
+      dplyr::select(df_geo_flat, -dplyr::any_of(c("choro_value", "circle_value"))),
+      df,
+      by = geo_join
     ) |>
-      dplyr::mutate(across(dplyr::where(is.numeric), as.double)) %>%
+      dplyr::mutate(dplyr::across(dplyr::where(is.numeric), as.double)) |>
       dplyr::mutate(
-        dplyr::across(dplyr::where(is.double), ~ dplyr::if_else(is.na(.x), 0, .x))
+        dplyr::across(
+          dplyr::where(is.double),
+          ~ dplyr::if_else(is.na(.x), 0, .x)
+        )
+      )
+
+    group_cols <- join_keys
+    if ("grouping" %in% names(df)) {
+      group_cols <- c(join_keys, "grouping")
+    }
+
+    df <- df |>
+      dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) |>
+      dplyr::summarise(
+        circle_value = sum(.data$circle_value, na.rm = TRUE),
+        .groups = "drop"
+      ) |>
+      dplyr::left_join(
+        dplyr::distinct(df_geo_flat[, meta_cols, drop = FALSE]),
+        by = join_keys
       )
   }
-  if (is.numeric(df$circle_value)) dplyr::filter(df, .data$circle_value > 0)
-  else df
+  if (is.numeric(df$circle_value)) {
+    dplyr::filter(df, .data$circle_value > 0)
+  } else {
+    df
+  }
 }
 
 #' Copy of mapview::mapshot2 with minor changes to avoid the full dependency on mapview

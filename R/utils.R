@@ -503,35 +503,102 @@ leaf_basemap <- function(
 make_leaf_tooltip <- function(df,
                               choro_lab,
                               circle_lab,
-                              name_col = "name") {
+                              name_col = "name",
+                              metric_vars = NULL,
+                              tooltip_groups = NULL) {
 
-  choro_value <- df[["choro_value"]]
-  if (is.numeric(choro_value))
-    choro_value <- ifelse(
-      is.na(choro_value),
-      "No data",
-      scales::number(choro_value, accuracy = 1)
-    )
+  format_metric <- function(x) {
+    if (is.numeric(x)) {
+      x <- dplyr::coalesce(x, 0)
+      return(scales::number(x, accuracy = 1))
+    }
+    ifelse(is.na(x), "0", as.character(x))
+  }
 
-  circle_value <- df[["circle_value"]]
-  if (is.numeric(circle_value))
-    circle_value <- ifelse(
-      is.na(circle_value),
-      "No data",
-      scales::number(circle_value, accuracy = 1)
-    )
-
-  if (choro_lab == circle_lab) {
+  format_breakdown <- function(row_i, conf_col, susp_col) {
+    conf <- if (conf_col %in% names(df)) {
+      dplyr::coalesce(df[[conf_col]][[row_i]], 0)
+    } else {
+      0
+    }
+    susp <- if (susp_col %in% names(df)) {
+      dplyr::coalesce(df[[susp_col]][[row_i]], 0)
+    } else {
+      0
+    }
+    total <- conf + susp
     glue::glue(
-      "<b>{df[[name_col]]}</b><br>
-       {circle_lab}: <b>{circle_value}</b><br>"
-    ) %>% purrr::map(shiny::HTML)
+      "{scales::number(total, accuracy = 1)} ",
+      "({scales::number(conf, accuracy = 1)} confirmed, ",
+      "{scales::number(susp, accuracy = 1)} suspected)"
+    )
+  }
+
+  # Optional named vector of extra columns to list in the tooltip
+  # (e.g. cases and deaths when shading and pies use different metrics).
+  extra_lines <- character(0)
+  if (length(metric_vars)) {
+    for (i in seq_along(metric_vars)) {
+      col <- unname(metric_vars[i])
+      lab <- names(metric_vars)[i]
+      if (!nzchar(lab)) {
+        lab <- col
+      }
+      if (col %in% names(df)) {
+        vals <- format_metric(df[[col]])
+        extra_lines <- c(
+          extra_lines,
+          glue::glue("{lab}: <b>{vals}</b>")
+        )
+      }
+    }
+  }
+
+  if (length(metric_vars) > 0L) {
+    purrr::map(seq_len(nrow(df)), function(i) {
+      lines <- purrr::map_chr(seq_along(metric_vars), function(j) {
+        lab <- names(metric_vars)[j]
+        if (!nzchar(lab)) {
+          lab <- unname(metric_vars[j])
+        }
+        if (
+          length(tooltip_groups) &&
+          lab %in% names(tooltip_groups)
+        ) {
+          cols <- tooltip_groups[[lab]]
+          val <- format_breakdown(i, cols[["confirmed"]], cols[["suspected"]])
+        } else {
+          col <- unname(metric_vars[j])
+          val <- if (col %in% names(df)) {
+            format_metric(df[[col]][[i]])
+          } else {
+            format_metric(0)
+          }
+        }
+        glue::glue("{lab}: <b>{val}</b>")
+      })
+      glue::glue(
+        "<b>{df[[name_col]][[i]]}</b><br>",
+        paste(lines, collapse = "<br>"),
+        "<br>"
+      )
+    }) |> purrr::map(shiny::HTML)
   } else {
-    glue::glue(
-      "<b>{df[[name_col]]}</b><br>
-       {choro_lab}: <b>{choro_value}</b><br>
-       {circle_lab}: <b>{circle_value}</b><br>"
-    ) %>% purrr::map(shiny::HTML)
+    choro_value <- format_metric(df[["choro_value"]])
+    circle_value <- format_metric(df[["circle_value"]])
+
+    if (choro_lab == circle_lab) {
+      glue::glue(
+        "<b>{df[[name_col]]}</b><br>
+         {circle_lab}: <b>{circle_value}</b><br>"
+      ) %>% purrr::map(shiny::HTML)
+    } else {
+      glue::glue(
+        "<b>{df[[name_col]]}</b><br>
+         {choro_lab}: <b>{choro_value}</b><br>
+         {circle_lab}: <b>{circle_value}</b><br>"
+      ) %>% purrr::map(shiny::HTML)
+    }
   }
 
 }
@@ -570,4 +637,47 @@ format_filter_info <- function(fi = NULL, tf = NULL, pf = NULL) {
     }
   }
   fi
+}
+
+#' Resolve leaflet.minicharts colour palette for pie slices
+#'
+#' @param slice_names Character vector of pie slice (column) names.
+#' @param group_var Grouping variable name (or \code{"n"} for no grouping).
+#' @param pie_palette Named list of named palettes by group variable, or
+#'   \code{NULL} to use the default epishiny palette.
+#' @param default Fallback palette when no match is found.
+#' @noRd
+resolve_minichart_palette <- function(
+    slice_names,
+    group_var = NULL,
+    pie_palette = NULL,
+    default = epi_pals()$d310) {
+  if (!length(slice_names)) {
+    return(default)
+  }
+
+  lookup <- function(pal) {
+    if (is.null(names(pal))) {
+      return(rep(pal, length.out = length(slice_names)))
+    }
+    matched <- pal[slice_names]
+    matched[is.na(matched)] <- "#999999"
+    unname(matched)
+  }
+
+  if (!is.null(pie_palette)) {
+    if (is.list(pie_palette) && !is.null(group_var) && group_var %in% names(pie_palette)) {
+      return(lookup(pie_palette[[group_var]]))
+    }
+    if (is.list(pie_palette) && "nogroup" %in% names(pie_palette) &&
+        all(slice_names %in% c("nogroup", "total"))) {
+      col <- pie_palette[["nogroup"]]
+      return(rep(unname(col)[1], length(slice_names)))
+    }
+    if (is.character(pie_palette) && !is.null(names(pie_palette))) {
+      return(lookup(pie_palette))
+    }
+  }
+
+  rep(default, length.out = length(slice_names))
 }
