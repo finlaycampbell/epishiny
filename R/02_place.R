@@ -228,6 +228,7 @@ place_ui <- function(
 #'   \code{confirmed} and \code{suspected} column names for breakdown display.
 #' @param circle_var_default Initial pie/circle size variable.
 #' @param group_var_default Initial pie grouping variable.
+#' @param geo_level_default Initial geo boundary level (\code{layer_name}).
 #'
 #' @rdname place
 #'
@@ -254,7 +255,8 @@ place_server <- function(
     pie_palette = NULL,
     tooltip_groups = NULL,
     circle_var_default = "none",
-    group_var_default = NULL
+    group_var_default = NULL,
+    geo_level_default = NULL
 ) {
   shiny::moduleServer(
     id,
@@ -400,18 +402,34 @@ place_server <- function(
       geo_select <- reactive({
         # if geo_data is a single 'epishiny_geo_layer' use that
         # otherwise select with on geo_level input
-        if (length(geo_data) == 1) {
-          geo_data[[1]]
-        } else {
-          gd_index <- which(purrr::map_chr(geo_data, "layer_name") == input$geo_level)
-          geo_data[[gd_index]]
+        if (length(geo_data) == 1L) {
+          return(geo_data[[1]])
         }
+
+        layer_names <- purrr::map_chr(geo_data, "layer_name")
+        gd_index <- which(layer_names == input$geo_level)
+
+        if (length(gd_index) < 1L && !is.null(geo_level_default)) {
+          gd_index <- which(layer_names == geo_level_default)
+        }
+        if (length(gd_index) < 1L) {
+          gd_index <- 1L
+        }
+
+        geo_data[[gd_index]]
       })
 
       rv <- reactiveValues()
 
       # update reactive values whenever inputs change
       observe({
+        shiny::req(
+          input$geo_level,
+          input$var,
+          input$choro_var,
+          input$circle_var
+        )
+
         geo_join <- geo_select()$join_by
         join_cols <- if (rlang::is_named(geo_join)) names(geo_join) else geo_join
         geo_col <- unname(geo_join)
@@ -449,6 +467,8 @@ place_server <- function(
 
       # filter geo boundaries to only those with incidence + their neighbours
       observe({
+        shiny::req(input$geo_level, geo_select()$sf, nrow(df_mod()) >= 0L)
+
         geo_join <- geo_select()$join_by
         geo_col <- unname(geo_join)
         geo_col_sym <- rlang::sym(geo_col)
@@ -527,6 +547,7 @@ place_server <- function(
 
       # join ll data to boundaries
       df_geo_counts <- reactive({
+        shiny::req(rv$geo_col, rv$choro_var, rv$circle_var, rv$sf)
 
         # is the data pre-aggregated
         is_agg <- as.logical(length(choro_vars))

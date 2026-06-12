@@ -223,6 +223,7 @@ time_server <- function(
       }
 
       observe({
+        shiny::req(input$group)
         cond <- input$group != "n"
         if (!cond) {
           shinyWidgets::updateRadioGroupButtons(session, "bar_stacking", selected = "normal")
@@ -250,21 +251,34 @@ time_server <- function(
       rv <- reactiveValues()
 
       observe({
+        shiny::req(input$date, input$group)
+
         date <- input$date
         rv$date <- date
         rv$date_sym <- rlang::sym(date)
-        count_var <- input$count_var
-        rv$count_var <- count_var
         group <- input$group
         rv$group <- group
         rv$group_sym <- rlang::sym(group)
+
+        if (length(count_vars)) {
+          shiny::req(input$count_var)
+          rv$count_var <- input$count_var
+          rv$n_lab <- get_label(input$count_var, count_vars)
+        } else {
+          rv$count_var <- NULL
+          rv$n_lab <- getOption("epishiny.count.label", "Cases")
+        }
+
         # TODO: add method for agg data
         rv$missing_dates <- sum(is.na(df_mod()[[input$date]]))
-        n_lab <- get_label(count_var, count_vars)
-        rv$n_lab <- n_lab
       })
 
       df_curve <- reactive({
+        shiny::req(rv$date_sym, rv$group, rv$date, input$date_interval)
+        if (length(count_vars)) {
+          shiny::req(rv$count_var)
+        }
+
         # aggregate dates based on input
         df_interval <- df_mod() %>%
           dplyr::mutate(
