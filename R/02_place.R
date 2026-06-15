@@ -1169,33 +1169,21 @@ add_choropleth_layer <- function(map, df_map, choro_settings, lab) {
   }
 
   # Calculate breaks
-  safe_breaks <- purrr::safely(classInt::classIntervals, otherwise = 4)
-  bins <- suppressWarnings(safe_breaks(
-    var = choro_values,
+  brks <- calc_choro_breaks(
+    values = choro_values,
     n = choro_settings$n_breaks,
     style = choro_settings$breaks_method
-  ))
+  )
 
-  if (!is.null(bins$error)) {
-    shiny::showNotification(
-      stringr::str_glue("{choro_settings$breaks_method} breaks could not be calculated for this data. Reverting to default breaks."),
-      type = "error"
-    )
-  } else {
-    brks <- unique(bins$result$brks)
-    # some break styles (e.g. "sd") can produce breaks below the data minimum,
-    # even negative values, which is invalid for case counts / attack rates.
-    # clamp breaks to the data range so they start at the minimum observed value.
-    rng <- range(choro_values, na.rm = TRUE)
-    brks <- brks[brks > rng[1] & brks < rng[2]]
-    bins$result <- sort(unique(c(rng[1], brks, rng[2])))
+  if (is.null(brks) || length(brks) < 2) {
+    return(map)
   }
 
   # Create color palette
   pal <- leaflet::colorBin(
     palette = choro_settings$palette,
     domain = choro_values,
-    bins = bins$result,
+    bins = brks,
     reverse = choro_settings$reverse_palette,
     na.color = "transparent"
   )
@@ -1505,6 +1493,11 @@ get_map_circle_df <- function(
       tidyr::pivot_wider(names_from = dplyr::all_of(group_var), values_from = "n")
 
     chart_cols <- setdiff(names(df_pivoted), geo_var)
+    # Keep slice column order aligned with factor level order when grouped
+    if (is.factor(df_raw[[group_var]])) {
+      lvls <- levels(droplevels(df_raw[[group_var]]))
+      chart_cols <- lvls[lvls %in% chart_cols]
+    }
 
     # drop count_var column before join to avoid conflict with group columns
     if (is_agg) {
@@ -1744,28 +1737,59 @@ choro_pals <- function() {
   )
 }
 
+#' Calculate choropleth class breaks
+#'
+#' The UI option \code{"fixed"} uses \code{pretty} intervals because classInt's
+#' \code{fixed} style requires explicit \code{fixedBreaks}.
+#' @noRd
+calc_choro_breaks <- function(values, n, style) {
+  values <- values[!is.na(values)]
+  if (!length(values)) {
+    return(NULL)
+  }
+
+  rng <- range(values, na.rm = TRUE)
+  if (diff(rng) == 0) {
+    return(c(rng[1], rng[1] + 1))
+  }
+
+  ci_style <- if (style == "fixed") "pretty" else style
+
+  res <- tryCatch(
+    suppressWarnings(classInt::classIntervals(values, n = n, style = ci_style)),
+    error = function(e) NULL
+  )
+
+  if (is.null(res) && ci_style != "quantile") {
+    res <- tryCatch(
+      suppressWarnings(classInt::classIntervals(values, n = n, style = "quantile")),
+      error = function(e) NULL
+    )
+  }
+
+  if (is.null(res)) {
+    return(seq(rng[1], rng[2], length.out = n + 1))
+  }
+
+  brks <- unique(res$brks)
+  # Some styles (e.g. "sd") can produce breaks outside the data range.
+  inner <- brks[brks > rng[1] & brks < rng[2]]
+  sort(unique(c(rng[1], inner, rng[2])))
+}
+
 #' Get choropleth break methods
 #' @noRd
 choro_breaks <- function() {
   c(
-    "fixed",
-    "sd",
-    "equal",
-    "pretty",
-    "quantile",
-    "kmeans",
-    "hclust",
-    "bclust",
-    "fisher",
-    "jenks",
-    "dpih",
-    "q6",
-    "Q6",
-    "geom",
-    "arith",
-    "em",
-    "msd",
-    "ckmeans"
+    "Fixed" = "fixed",
+    "Quantile" = "quantile",
+    "Equal" = "equal",
+    "Pretty" = "pretty",
+    "Standard deviation" = "sd",
+    "Jenks" = "jenks",
+    "K-means" = "kmeans",
+    "Hierarchical cluster" = "hclust",
+    "Fisher" = "fisher"
   )
 }
 
@@ -1900,7 +1924,17 @@ make_leaf_tooltip <- function(
     ifelse(is.na(x), "0", as.character(x))
   }
 
-  counts <- ifelse(is.na(df[[n_col]]), "No data", scales::number(df[[n_col]], accuracy = 1))
+  metric_cols <- if (length(metric_vars)) unname(metric_vars) else character()
+  metric_labels <- if (length(names(metric_vars))) {
+    names(metric_vars)
+  } else {
+    metric_cols
+  }
+  # Skip the main count line when the same metric is already in extra_per_row
+  show_n_line <- !length(metric_cols) ||
+    (!any(n_col %in% metric_cols) && !any(n_lab %in% metric_labels))
+
+  counts <- format_metric(df[[n_col]])
 
   # Build per-row extra metric lines (one tooltip string per polygon).
   extra_per_row <- if (length(metric_vars) && nrow(df) > 0L) {
@@ -1921,13 +1955,19 @@ make_leaf_tooltip <- function(
     rep("", nrow(df))
   }
 
+  n_line <- if (show_n_line) {
+    glue::glue("{n_lab}: <b>{counts}</b><br>")
+  } else {
+    rep("", nrow(df))
+  }
+
   if (all(!is.null(pop_col), !is.null(ar_col))) {
     pop <- ifelse(is.na(df[[pop_col]]), "No data", scales::number(df[[pop_col]], accuracy = 1))
     ar <- ifelse(is.na(df[[ar_col]]), "No data", scales::number(df[[ar_col]], accuracy = .1))
     glue::glue(
       "<b>{df[[name_col]]}</b><br>",
       "{extra_per_row}",
-      "{n_lab}: <b>{counts}</b><br>",
+      "{n_line}",
       "{pop_lab}: <b>{pop}</b><br>",
       "{ar_lab}: <b>{ar}</b> / 100 000<br>"
     ) |>
@@ -1936,7 +1976,7 @@ make_leaf_tooltip <- function(
     glue::glue(
       "<b>{df[[name_col]]}</b><br>",
       "{extra_per_row}",
-      "{n_lab}: <b>{counts}</b><br>"
+      "{n_line}"
     ) |>
       purrr::map(shiny::HTML)
   }

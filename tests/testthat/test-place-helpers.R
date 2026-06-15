@@ -580,6 +580,23 @@ test_that("get_map_circle_df handles aggregated grouped data", {
   expect_true(all(c("Death", "Recovery") %in% chart_cols))
 })
 
+test_that("calc_choro_breaks maps fixed to pretty intervals", {
+  values <- c(1, 2, 3, 5, 10, 20, 50)
+
+  brks <- epishiny:::calc_choro_breaks(values, n = 5, style = "fixed")
+
+  expect_type(brks, "double")
+  expect_equal(min(brks), 1)
+  expect_equal(max(brks), 50)
+  expect_true(all(brks == round(brks)))
+})
+
+test_that("calc_choro_breaks handles constant values", {
+  brks <- epishiny:::calc_choro_breaks(rep(5, 4), n = 5, style = "fixed")
+
+  expect_equal(brks, c(5, 6))
+})
+
 # Test prepare_geo_data() ------------------------------------------------------
 
 test_that("prepare_geo_data returns sf with correct columns for linelist", {

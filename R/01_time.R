@@ -358,6 +358,16 @@ time_server <- function(
 
         date_lab <- get_label(date, date_vars)
 
+        click_js <- highcharter::JS(
+          glue::glue(
+            'function(event) {
+            Shiny.setInputValue("{{ns("chart_click")}}", {x: event.point.x, y: event.point.y}, {priority: "event"});
+          }',
+            .open = "{{",
+            .close = "}}"
+          )
+        )
+
         if (group == "n") {
           hc <- highcharter::hchart(
             df,
@@ -377,9 +387,19 @@ time_server <- function(
           if (any(is.na(df[[group]]))) {
             df[[group]] <- forcats::fct_na_value_to_level(df[[group]], level = getOption("epishiny.na.label", "(Missing)"))
           }
-          n_groups <- dplyr::n_distinct(df[[group]])
-          missing_data <- getOption("epishiny.na.label", "(Missing)") %in% unique(df[[group]])
-          pal <- prepare_palette(n_groups, missing_data, pal = group_pal, na_colour = na_colour)
+          group_levels <- get_time_group_levels(df[[group]])
+          # highcharter places the first series on top of the stack; reverse levels
+          # so the first data level (e.g. deaths) renders at the bottom.
+          chart_levels <- rev(group_levels)
+          df[[group]] <- factor(df[[group]], levels = chart_levels)
+          df <- dplyr::arrange(df, !!date_sym, !!group_sym)
+          missing_data <- getOption("epishiny.na.label", "(Missing)") %in% chart_levels
+          series_cols <- get_time_series_colors(
+            group_levels = group_levels,
+            group_pal = group_pal,
+            missing_data = missing_data,
+            na_colour = na_colour
+          )
 
           hc <- highcharter::hchart(
             df,
@@ -396,22 +416,12 @@ time_server <- function(
               y = 40,
               itemStyle = list(textOverflow = "ellipsis", width = 150)
             ) %>%
-            highcharter::hc_colors(pal) %>%
+            (\(hc) assign_hc_series_colors(hc, series_cols)) %>%
             highcharter::hc_tooltip(
               shared = TRUE,
               pointFormat = '<span style="color:{point.color}">\u25CF</span> {series.name}: <b>{point.y} ({point.percentage:.1f}%)</b><br/>'
             )
         }
-
-        click_js <- highcharter::JS(
-          glue::glue(
-            'function(event) {
-            Shiny.setInputValue("{{ns("chart_click")}}", {x: event.point.x, y: event.point.y}, {priority: "event"});
-          }',
-            .open = "{{",
-            .close = "}}"
-          )
-        )
 
         # if a click filter has previously been applied, re-add the plotBand highlight
         tf <- time_filter()
@@ -800,12 +810,58 @@ get_time_df <- function(
         tidyr::nesting(!!rlang::sym(group_var)),
         fill = list(n = 0)
       ) %>%
-      dplyr::arrange(.data[[date_var]]) %>%
+      dplyr::arrange(.data[[date_var]], .data[[group_var]]) %>%
       dplyr::mutate(
         .by = {{ group_var }},
         n_c = cumsum(.data$n)
       )
   }
+}
+
+#' Factor level order for stacked time series (first level = bottom of stack)
+#' @noRd
+get_time_group_levels <- function(x) {
+  if (is.factor(x)) {
+    levels(forcats::fct_drop(x))
+  } else {
+    sort(unique(x))
+  }
+}
+
+#' Named colours for stacked series (matched by series name, not position)
+#' @noRd
+get_time_series_colors <- function(
+  group_levels,
+  group_pal,
+  missing_data = FALSE,
+  na_colour = "#666666"
+) {
+  if (
+    !is.null(names(group_pal)) &&
+    all(group_levels %in% names(group_pal))
+  ) {
+    return(scales::alpha(group_pal[group_levels], 0.8))
+  }
+
+  cols <- prepare_palette(
+    length(group_levels),
+    missing_data,
+    pal = group_pal,
+    na_colour = na_colour
+  )
+  stats::setNames(cols, group_levels)
+}
+
+#' Apply named colours to highchart series by matching series name
+#' @noRd
+assign_hc_series_colors <- function(hc, named_cols) {
+  for (i in seq_along(hc$x$hc_opts$series)) {
+    nm <- hc$x$hc_opts$series[[i]]$name
+    if (!is.null(named_cols[[nm]])) {
+      hc$x$hc_opts$series[[i]]$color <- unname(named_cols[[nm]])
+    }
+  }
+  hc
 }
 
 #' @noRd
@@ -1031,22 +1087,31 @@ prepare_palette <- function(
   missing_data = FALSE,
   na_colour = "#666666",
   pal = epi_pals()$aurora,
-  alpha = 0.8
+  alpha = 0.8,
+  group_levels = NULL
 ) {
   if (!length(pal)) {
     pal <- epi_pals()$aurora
   }
-  n_pal <- length(pal)
-  n_non_na <- ifelse(missing_data, n - 1, n)
-  pal <- if (n_non_na > n_pal && n_non_na < 10) {
-    grDevices::colorRampPalette(epi_pals()$aurora)(n_non_na)
-  } else if (n_non_na > n_pal) {
-    epi_pals()$pal20
+  if (
+    !is.null(group_levels) &&
+      !is.null(names(pal)) &&
+      all(group_levels %in% names(pal))
+  ) {
+    pal <- pal[group_levels]
   } else {
-    pal
-  }
-  if (missing_data) {
-    pal[n] <- na_colour
+    n_pal <- length(pal)
+    n_non_na <- ifelse(missing_data, n - 1, n)
+    pal <- if (n_non_na > n_pal && n_non_na < 10) {
+      grDevices::colorRampPalette(epi_pals()$aurora)(n_non_na)
+    } else if (n_non_na > n_pal) {
+      epi_pals()$pal20
+    } else {
+      pal
+    }
+    if (missing_data) {
+      pal[n] <- na_colour
+    }
   }
   scales::alpha(pal, alpha)
 }
