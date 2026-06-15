@@ -356,6 +356,8 @@ place_server <- function(
         geo_data[[gd_index]]
       })
 
+      rv <- reactiveValues()
+
       # update choropleth switch tooltip on popover open/close
       # observe({
       #   req(geo_select())
@@ -382,13 +384,18 @@ place_server <- function(
 
       # disable choropleth layer if geo_select has no polygons
       observe({
+        req(rv$sf)
         n_polys <- rv$sf %>%
           dplyr::filter(
             sf::st_is(sf::st_geometry(rv$sf), c("POLYGON", "MULTIPOLYGON"))
           ) |>
           nrow()
         has_polys <- n_polys > 0
-        bslib::update_switch("choro_active", value = if (has_polys && input$choro_active) TRUE else FALSE)
+        choro_on <- isTRUE(input$choro_active)
+        bslib::update_switch(
+          "choro_active",
+          value = if (has_polys && choro_on) TRUE else FALSE
+        )
         shinyjs::toggleState(id = "choro_active", condition = has_polys)
         bslib::update_tooltip(
           "tt-choro",
@@ -424,10 +431,10 @@ place_server <- function(
       }) %>%
         bindEvent(geo_select())
 
-      rv <- reactiveValues()
-
       # update reactive values whenever inputs change
       observe({
+        shiny::req(input$geo_level, geo_select())
+
         geo_join <- geo_select()$join_by
         join_cols <- if (rlang::is_named(geo_join)) names(geo_join) else geo_join
         geo_col <- unname(geo_join)
@@ -438,11 +445,25 @@ place_server <- function(
         map_var <- input$var %||% "n"
         var_list <- c("n", group_vars)
         map_var_lab <- get_label(map_var, var_list)
-        count_var <- input$count_var
-        n_lab <- get_label(count_var, count_vars)
+
+        if (length(count_vars)) {
+          shiny::req(input$count_var)
+          count_var <- input$count_var
+        } else {
+          count_var <- NULL
+        }
+        n_lab <- if (length(count_vars)) {
+          get_label(count_var, count_vars)
+        } else {
+          getOption("epishiny.count.label", "Cases")
+        }
 
         # Choropleth layer selections
-        choro_indicator <- input$choro_indicator %||% unname(count_vars)[1]
+        choro_indicator <- if (length(count_vars)) {
+          input$choro_indicator %||% unname(count_vars)[1]
+        } else {
+          NULL
+        }
         choro_display <- input$choro_var %||% "attack_rate"
 
         # Determine which column to visualize in choropleth
@@ -479,6 +500,8 @@ place_server <- function(
 
       # filter geo boundaries to only those with incidence + their neighbours
       observe({
+        shiny::req(geo_select()$sf, nrow(df_mod()) >= 0L)
+
         geo_join <- geo_select()$join_by
         geo_col <- unname(geo_join)
         geo_col_sym <- rlang::sym(geo_col)
@@ -494,8 +517,9 @@ place_server <- function(
 
       # basemap
       output$map <- leaflet::renderLeaflet({
-        # bbox <- sf::st_bbox(geo_data[[1]]$sf)
-        bbox <- sf::st_bbox(isolate(rv$sf))
+        sf_layer <- isolate(rv$sf) %||% geo_select()$sf
+        shiny::req(sf_layer)
+        bbox <- sf::st_bbox(sf_layer)
         leaf_basemap(bbox, miniMap = TRUE)
       })
 
@@ -637,7 +661,7 @@ place_server <- function(
           leaflet::clearGroup("Choropleth") %>%
           leaflet::removeControl(layerId = "attack_legend")
 
-        if (input$choro_active) {
+        if (isTRUE(input$choro_active)) {
           # Create choropleth settings object
           choro_settings <- list(
             variable = rv$choro_col,
@@ -672,7 +696,7 @@ place_server <- function(
         map_proxy <- leaflet::leafletProxy("map", session) %>%
           leaflet.minicharts::clearMinicharts()
 
-        if (input$symbols_active | minicharts_init()) {
+        if (isTRUE(input$symbols_active) || minicharts_init()) {
           chart_cols <- attr(df_map_circles(), "chart_cols")
           group_var <- if (rv$map_var != "n") rv$map_var else NULL
           pie_cols <- resolve_minichart_palette(
@@ -698,7 +722,7 @@ place_server <- function(
 
       # show/hide circles when selected/unselected from map groups
       observeEvent(input$symbols_active, {
-        if (!input$symbols_active) {
+        if (!isTRUE(input$symbols_active)) {
           leaflet::leafletProxy("map", session) %>%
             leaflet.minicharts::clearMinicharts()
           minicharts_on(FALSE)
@@ -850,7 +874,7 @@ place_server <- function(
           )
 
           # Add symbols layer using helper function
-          if (input$symbols_active) {
+          if (isTRUE(input$symbols_active)) {
             symbols_settings <- list(
               size_multiplier = input$circle_size_mult %||% 6,
               base_multiplier = 7, # 7 instead of 10 for export (circles appear larger)
@@ -864,7 +888,7 @@ place_server <- function(
           }
 
           # Add choropleth layer using helper function
-          if (input$choro_active) {
+          if (isTRUE(input$choro_active)) {
             choro_settings <- list(
               variable = rv$choro_col,
               palette = input$choro_pal %||% "Reds",
