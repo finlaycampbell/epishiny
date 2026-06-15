@@ -11,6 +11,8 @@
 #' @param group_vars Character vector of categorical variable names. If provided, a select input will appear
 #'  in the options dropdown allowing for data groups to be visualised as stacked bars on the epicurve.
 #'  If named, names are used as variable labels.
+#' @param group_var_default Character string of variable name in `group_vars` to use as default grouping variable.
+#'   If NULL, no default is set and "No grouping" option will be selected by default.
 #' @param title Header title for the card.
 #' @param icon The icon to display next to the title.
 #' @param tooltip additional title hover text information
@@ -19,6 +21,8 @@
 #' @param date_int_lab text label for the date interval input.
 #' @param date_intervals Character vector with choices for date aggregation intervals passed to the `unit`
 #'  argument of [lubridate::floor_date]. If named, names are used as labels. Default is c('day', 'week', 'year').
+#' @param date_interval_default Character string of default date interval to use. Must be one of the values provided in `date_intervals`.
+#'   Defaults to "week" if available, otherwise the first value in `date_intervals`.
 #' @param count_vars_lab text label for the aggregate count variables input.
 #' @param groups_lab text label for the grouping variable input.
 #' @param no_grouping_lab text label for the no grouping option in the grouping input.
@@ -28,6 +32,9 @@
 #'  `show_ratio` is TRUE in [time_server]
 #' @param zoom_control_lab text label for the zoom control option.
 #' @param full_screen Add button to card to with the option to enter full screen mode?
+#' @param use_sidebar Logical. If TRUE, displays options in a sidebar instead of popover button. Default TRUE.
+#' @param sidebar_title String. Title for the sidebar. Only used if use_sidebar = TRUE. Default "Chart options".
+#' @param sidebar_width Numeric. Width of sidebar in pixels. Only used if use_sidebar = TRUE. Default 250.
 #'
 #' @return the module server function returns any point click event data of the highchart.
 #'   see [highcharter::hc_add_event_point] for details.
@@ -39,6 +46,7 @@ time_ui <- function(
   date_vars,
   count_vars = NULL,
   group_vars = NULL,
+  group_var_default = NULL,
   title = "Time",
   icon = bsicons::bs_icon("calendar2-week"),
   tooltip = NULL,
@@ -46,6 +54,7 @@ time_ui <- function(
   date_lab = "Date axis",
   date_int_lab = "Date interval",
   date_intervals = c("Day" = "day", "Week" = "week", "Month" = "month"),
+  date_interval_default = ifelse("week" %in% date_intervals, "week", date_intervals[1]),
   count_vars_lab = "Indicator",
   groups_lab = "Group data by",
   no_grouping_lab = "No grouping",
@@ -53,7 +62,10 @@ time_ui <- function(
   cumul_data_lab = "Show cumulative data?",
   ratio_line_lab = "Show ratio line?",
   zoom_control_lab = "Add zoom control slider?",
-  full_screen = TRUE
+  full_screen = TRUE,
+  use_sidebar = TRUE,
+  sidebar_title = NULL,
+  sidebar_width = 250
 ) {
   ns <- NS(id)
 
@@ -72,6 +84,25 @@ time_ui <- function(
     tt <- NULL
   }
 
+  inputs_ui <- time_options_ui(
+    ns = ns,
+    date_vars = date_vars,
+    date_lab = date_lab,
+    date_int_lab = date_int_lab,
+    date_intervals = date_intervals,
+    date_interval_default = date_interval_default,
+    count_vars = count_vars,
+    count_vars_lab = count_vars_lab,
+    group_vars = group_vars,
+    group_var_default = group_var_default,
+    groups_lab = groups_lab,
+    no_grouping_lab = no_grouping_lab,
+    bar_stacking_lab = bar_stacking_lab,
+    cumul_data_lab = cumul_data_lab,
+    ratio_line_lab = ratio_line_lab,
+    zoom_control_lab = zoom_control_lab
+  )
+
   tagList(
     use_epishiny(),
     bslib::card(
@@ -81,83 +112,59 @@ time_ui <- function(
         class = "d-flex align-items-center",
         # title
         tags$span(icon, title, class = "me-auto pe-2"),
-        # options button and dropdown menu
-        bslib::popover(
-          title = opts_btn_lab,
-          placement = "left",
-          trigger = bsicons::bs_icon(
-            "gear",
+        # tooltip if provided
+        tt,
+        # options button - popover or sidebar toggle
+        if (!use_sidebar) {
+          # Popover mode
+          bslib::popover(
             title = opts_btn_lab,
-            class = "ms-2 text-primary",
-            size = "1.2em"
-          ),
-          selectInput(
-            ns("date"),
-            label = date_lab,
-            choices = date_vars,
-            multiple = FALSE,
-            selectize = FALSE,
-            width = 200
-          ),
-          shinyWidgets::radioGroupButtons(
-            ns("date_interval"),
-            label = date_int_lab,
-            size = "sm",
-            status = "outline-primary",
-            choices = date_intervals,
-            selected = date_intervals[1]
-          ),
-          selectInput(
-            ns("count_var"),
-            label = count_vars_lab,
-            choices = count_vars,
-            multiple = FALSE,
-            selectize = FALSE,
-            width = 200
-          ),
-          selectInput(
-            ns("group"),
-            label = groups_lab,
-            choices = c(purrr::set_names("n", no_grouping_lab), group_vars),
-            selected = if(!is.null(group_vars)) group_vars[1] else NULL,
-            multiple = FALSE,
-            selectize = FALSE,
-            width = 200
-          ),
-          shinyWidgets::radioGroupButtons(
-            ns("bar_stacking"),
-            label = bar_stacking_lab,
-            size = "sm",
-            status = "outline-primary",
-            choices = c("Count" = "normal", "Percent" = "percent"),
-            selected = "normal"
-          ),
-          bslib::input_switch(
-            ns("cumulative"),
-            cumul_data_lab,
-            value = FALSE,
-            width = "100%"
-          ),
-          bslib::input_switch(
-            ns("show_ratio_line"),
-            ratio_line_lab,
-            value = FALSE,
-            width = "100%"
-          ),
-          bslib::input_switch(
-            ns("add_zoom_control"),
-            zoom_control_lab,
-            value = FALSE,
-            width = "100%"
+            id = ns("popover"),
+            placement = "left",
+            trigger = bsicons::bs_icon(
+              "gear",
+              title = opts_btn_lab,
+              class = "ms-2 text-primary",
+              size = "1.2em"
+            ),
+            inputs_ui
           )
-        ),
-        # tooltip at the end
-        tt
+        } else {
+          # Sidebar mode - gear icon toggles sidebar
+          actionLink(
+            ns("toggle_sidebar"),
+            label = bsicons::bs_icon("gear", size = "1.2em"),
+            class = "ms-2 text-primary"
+          ) |>
+            bslib::tooltip(opts_btn_lab)
+        }
       ),
-      bslib::card_body(
-        padding = 0,
-        highcharter::highchartOutput(ns("chart"))
-      )
+      # Conditional card body based on layout mode
+      if (use_sidebar) {
+        # Sidebar layout
+        bslib::card_body(
+          padding = 0,
+          bslib::layout_sidebar(
+            padding = c(0, 35, 0, 0),
+            gap = 0,
+            sidebar = bslib::sidebar(
+              id = ns("time_sidebar"),
+              title = sidebar_title,
+              width = sidebar_width,
+              position = "right",
+              open = "closed",
+              inputs_ui
+            ),
+            highcharter::highchartOutput(ns("chart"))
+          )
+        )
+      } else {
+        # Popover layout - just chart in body
+        bslib::card_body(
+          padding = 0,
+          highcharter::highchartOutput(ns("chart"))
+        )
+      }
     )
   )
 }
@@ -174,11 +181,12 @@ time_ui <- function(
 #' @param group_pal Colour palette used for groups.
 #' @param na_colour Colour used for missing data.
 #' @param filter_info If contained within an app using [filter_server()], supply the `filter_info` object
-#'   returned by that function here wrapped in a [shiny::reactive()] to add filter information to chart exports.
+#'   returned by that function here to add filter information to chart exports.
 #' @param filter_reset If contained within an app using [filter_server()], supply the `filter_reset` object
-#'   returned by that function here wrapped in a [shiny::reactive()] to reset any click event filters that have been set from by module.
-#' @param place_filter supply the output of [place_server()] wrapped in a [shiny::reactive()] here to filter
-#'  the data by click events on the place module map (clicking a polygon will filter the data to the clicked region)
+#'   returned by that function here to reset any click event filters that have been set from by module.
+#' @param place_filter supply the output of [place_server()] here to filter
+#'   the data by click events on the place module map (clicking a polygon
+#'   will filter the data to the clicked region)
 #'
 #' @rdname time
 #'
@@ -205,6 +213,11 @@ time_server <- function(
     id,
     function(input, output, session) {
       ns <- session$ns
+
+      # Toggle sidebar when gear icon clicked
+      observeEvent(input$toggle_sidebar, {
+        bslib::sidebar_toggle("time_sidebar")
+      })
 
       if (is.null(group_vars)) {
         shinyjs::hide("group")
@@ -269,8 +282,15 @@ time_server <- function(
           rv$n_lab <- getOption("epishiny.count.label", "Cases")
         }
 
-        # TODO: add method for agg data
-        rv$missing_dates <- sum(is.na(df_mod()[[input$date]]))
+        is_agg <- as.logical(length(count_vars))
+        rv$missing_dates <- if (!is_agg) {
+          sum(is.na(df_mod()[[input$date]]))
+        } else {
+          df_mod() |>
+            dplyr::filter(is.na(.data[[input$date]])) |>
+            dplyr::summarise(n = sum(.data[[input$count_var]], na.rm = TRUE)) |>
+            dplyr::pull(n)
+        }
       })
 
       df_curve <- reactive({
@@ -278,13 +298,12 @@ time_server <- function(
         if (length(count_vars)) {
           shiny::req(rv$count_var)
         }
-
         # aggregate dates based on input
         df_interval <- df_mod() %>%
           dplyr::mutate(
             !!rv$date_sym := lubridate::floor_date(
               lubridate::as_date(!!rv$date_sym),
-              unit = input$date_interval,
+              unit = tolower(input$date_interval),
               week_start = getOption("epishiny.week.start", 1)
             )
           )
@@ -301,7 +320,7 @@ time_server <- function(
           date_var = rv$date,
           count_var = rv$count_var,
           group_var = rv$group,
-          date_interval = input$date_interval
+          date_interval = tolower(input$date_interval)
         )
 
         if (show_ratio) {
@@ -410,29 +429,19 @@ time_server <- function(
           plot_bands = list()
         }
 
-        # custom behaviour for clicking legend items
-        click_legend_item <- system.file("assets/js/clickLegendItem.js", package = "epishiny")
-        click_legend_item <- highcharter::JS(paste0(readLines(click_legend_item), collapse = "\n"))
-
         hc <- hc %>%
           highcharter::hc_title(text = NULL) %>%
           highcharter::hc_chart(zoomType = "x", alignTicks = TRUE) %>%
           highcharter::hc_plotOptions(
             column = list(stacking = isolate(input$bar_stacking)),
-            series = list(
-              cursor = "pointer",
-              stickyTracking = TRUE,
-              events = list(
-                click = click_js,
-                legendItemClick = click_legend_item
-              )
-            )
+            series = list(cursor = "pointer", stickyTracking = TRUE, events = list(click = click_js))
           ) %>%
           highcharter::hc_xAxis(
             title = list(text = date_lab),
             lineColor = "black",
             allowDecimals = FALSE,
             crosshair = TRUE,
+            ordinal = TRUE,
             plotBands = plot_bands
           ) %>%
           highcharter::hc_yAxis_multiples(
@@ -450,12 +459,13 @@ time_server <- function(
           highcharter::hc_boost(enabled = TRUE) %>%
           my_hc_export(caption = isolate(filter_info_out()))
 
-        if (isolate(input$date_interval == "week")) {
+        if (isolate(tolower(input$date_interval) == "week")) {
           hc <- hc %>%
             highcharter::hc_xAxis(
               title = list(text = date_lab),
               allowDecimals = FALSE,
               crosshair = TRUE,
+              ordinal = TRUE,
               plotBands = plot_bands,
               labels = list(
                 formatter = hc_week_labels()
@@ -661,10 +671,10 @@ time_server <- function(
         bc <- bar_click()
         if (length(bc)) {
           date_var <- input$date
-          interval <- input$date_interval
+          interval <- tolower(input$date_interval)
           from <- lubridate::as_datetime(bc / 1000, origin = "1970-01-01")
           # this only makes sense if the interval is a full day or more
-          to <- from + lubridate::period(1, input$date_interval) - lubridate::period(1, "day")
+          to <- from + lubridate::period(1, interval) - lubridate::period(1, "day")
           lab <- format_period(c(from, to), interval)
           list(
             date_var = date_var,
@@ -711,15 +721,6 @@ time_server <- function(
 }
 
 #' @noRd
-get_time_date_sequence <- function(dates, date_interval) {
-  dates <- dates[!is.na(dates)]
-  if (!length(dates)) {
-    return(as.Date(character(0)))
-  }
-  seq.Date(min(dates), max(dates), by = date_interval)
-}
-
-#' @noRd
 get_time_df <- function(
   df,
   is_agg,
@@ -735,55 +736,76 @@ get_time_df <- function(
     ))
   }
 
-  date_seq <- get_time_date_sequence(df[[date_var]], date_interval)
-
-  if (!is_grouped) {
+  # Count observations based on aggregation and grouping
+  df_counts <- if (!is_grouped) {
     if (is_agg) {
-      df <- df %>%
-        dplyr::count(.data[[date_var]], wt = .data[[count_var]])
+      dplyr::count(df, .data[[date_var]], wt = .data[[count_var]])
     } else {
-      df <- df %>% dplyr::count(.data[[date_var]])
+      dplyr::count(df, .data[[date_var]])
     }
-    df <- df %>%
-      tidyr::drop_na()
+  } else {
+    if (is_agg) {
+      dplyr::count(df, .data[[date_var]], .data[[group_var]], wt = .data[[count_var]])
+    } else {
+      dplyr::count(df, .data[[date_var]], .data[[group_var]])
+    }
+  }
 
-    if (length(date_seq)) {
-      df <- df %>%
-        tidyr::complete(
-          !!rlang::sym(date_var) := date_seq,
-          fill = list(n = 0)
+  # Drop missing dates
+  df_complete <- df_counts %>% tidyr::drop_na()
+
+  # Handle edge cases: no data or all dates missing
+  if (nrow(df_complete) == 0) {
+    # Return empty data frame with correct structure
+    if (!is_grouped) {
+      return(
+        dplyr::tibble(
+          !!rlang::sym(date_var) := lubridate::Date(),
+          n = integer(),
+          n_c = integer()
         )
+      )
+    } else {
+      return(
+        dplyr::tibble(
+          !!rlang::sym(date_var) := lubridate::Date(),
+          !!rlang::sym(group_var) := character(),
+          n = integer(),
+          n_c = integer()
+        )
+      )
     }
+  }
 
-    df <- df %>%
+  # Generate complete date sequence
+  date_seq <- seq.Date(
+    min(df_complete[[date_var]], na.rm = TRUE),
+    max(df_complete[[date_var]], na.rm = TRUE),
+    by = date_interval
+  )
+
+  # Complete date sequence and calculate cumulative counts
+  if (!is_grouped) {
+    df_complete %>%
+      tidyr::complete(
+        !!rlang::sym(date_var) := date_seq,
+        fill = list(n = 0)
+      ) %>%
       dplyr::arrange(.data[[date_var]]) %>%
       dplyr::mutate(n_c = cumsum(.data$n))
   } else {
-    if (is_agg) {
-      df <- df %>%
-        dplyr::count(.data[[date_var]], .data[[group_var]], wt = .data[[count_var]])
-    } else {
-      df <- df %>% dplyr::count(.data[[date_var]], .data[[group_var]])
-    }
-    df <- df %>%
-      tidyr::drop_na()
-
-    if (length(date_seq)) {
-      df <- df %>%
-        tidyr::complete(
-          !!rlang::sym(date_var) := date_seq,
-          tidyr::nesting(!!rlang::sym(group_var)),
-          fill = list(n = 0)
-        )
-    }
-
-    df <- df %>%
-      dplyr::group_by(.data[[group_var]]) %>%
+    df_complete %>%
+      tidyr::complete(
+        !!rlang::sym(date_var) := date_seq,
+        tidyr::nesting(!!rlang::sym(group_var)),
+        fill = list(n = 0)
+      ) %>%
       dplyr::arrange(.data[[date_var]]) %>%
-      dplyr::mutate(n_c = cumsum(.data$n)) %>%
-      dplyr::ungroup()
+      dplyr::mutate(
+        .by = {{ group_var }},
+        n_c = cumsum(.data$n)
+      )
   }
-  return(df)
 }
 
 #' @noRd
@@ -796,8 +818,9 @@ get_ratio_df <- function(
   ratio_numer,
   ratio_denom
 ) {
+  # Validate inputs based on data type
   if (!is_agg) {
-    # method for patient level data
+    # Patient level data requires ratio_var and both numer/denom levels
     if (any(is.null(ratio_var), is.null(ratio_numer), is.null(ratio_denom), is.null(ratio_lab))) {
       cli::cli_abort(c(
         "x" = "to calculate a ratio from patient level data, the following must be provided:",
@@ -808,20 +831,8 @@ get_ratio_df <- function(
         "i" = "See ?epishiny::time for details."
       ))
     }
-
-    df_ratio <- df %>%
-      dplyr::group_by(.data[[date_var]]) %>%
-      dplyr::summarise(
-        n1 = sum(.data[[ratio_var]] %in% ratio_numer),
-        N = sum(.data[[ratio_var]] %in% unique(c(ratio_numer, ratio_denom))),
-        ratio = (.data$n1 / .data$N) * 100,
-        .groups = "drop"
-      ) %>%
-      dplyr::arrange(.data[[date_var]]) %>%
-      dplyr::mutate(ratio_c = cumsum(.data$n1) / cumsum(.data$N) * 100) %>%
-      dplyr::select(.data[[date_var]], .data$ratio, .data$ratio_c)
   } else {
-    # method for aggregated data
+    # Aggregated data requires numer/denom column names
     if (any(is.null(ratio_numer), is.null(ratio_denom), is.null(ratio_lab))) {
       cli::cli_abort(c(
         "x" = "to calculate a ratio from aggregated data, the following must be provided in `time_server` module:",
@@ -831,20 +842,37 @@ get_ratio_df <- function(
         "i" = "See ?epishiny::time for details."
       ))
     }
+  }
+
+  # Calculate numerator and denominator based on data type
+  if (!is_agg) {
+    # Patient level: count matching values in ratio_var
+    denom_levels <- unique(c(ratio_numer, ratio_denom))
 
     df_ratio <- df %>%
-      dplyr::group_by(.data[[date_var]]) %>%
       dplyr::summarise(
+        .by = {{ date_var }},
+        n1 = sum(.data[[ratio_var]] %in% ratio_numer),
+        N = sum(.data[[ratio_var]] %in% denom_levels)
+      )
+  } else {
+    # Aggregated: sum pre-aggregated count columns
+    df_ratio <- df %>%
+      dplyr::summarise(
+        .by = {{ date_var }},
         n1 = sum(.data[[ratio_numer]], na.rm = TRUE),
-        N = sum(.data[[ratio_denom]], na.rm = TRUE),
-        ratio = (.data$n1 / .data$N) * 100,
-        .groups = "drop"
-      ) %>%
-      dplyr::arrange(.data[[date_var]]) %>%
-      dplyr::mutate(ratio_c = cumsum(.data$n1) / cumsum(.data$N) * 100) %>%
-      dplyr::select(.data[[date_var]], .data$ratio, .data$ratio_c)
+        N = sum(.data[[ratio_denom]], na.rm = TRUE)
+      )
   }
-  return(df_ratio)
+
+  # Common calculation pipeline for both data types
+  df_ratio %>%
+    dplyr::arrange(.data[[date_var]]) %>%
+    dplyr::mutate(
+      ratio = (.data$n1 / .data$N) * 100,
+      ratio_c = cumsum(.data$n1) / cumsum(.data$N) * 100
+    ) %>%
+    dplyr::select(dplyr::all_of(c(date_var, "ratio", "ratio_c")))
 }
 
 #' @noRd
@@ -901,5 +929,141 @@ get_plot_band_limits <- function(tf) {
   list(
     from = tf$from - pad,
     to = tf$from + pad
+  )
+}
+
+# =============================================================================
+# HELPER FUNCTION FOR OPTIONS UI
+# =============================================================================
+
+#' Generate time module options UI
+#' @noRd
+time_options_ui <- function(
+  ns,
+  date_vars,
+  date_lab,
+  date_int_lab,
+  date_intervals,
+  date_interval_default,
+  count_vars,
+  count_vars_lab,
+  group_vars,
+  group_var_default,
+  groups_lab,
+  no_grouping_lab,
+  bar_stacking_lab,
+  cumul_data_lab,
+  ratio_line_lab,
+  zoom_control_lab
+) {
+  tagList(
+    selectInput(
+      ns("date"),
+      label = date_lab,
+      choices = date_vars,
+      multiple = FALSE,
+      selectize = FALSE,
+      width = "100%"
+    ),
+    shinyWidgets::radioGroupButtons(
+      ns("date_interval"),
+      label = date_int_lab,
+      size = "sm",
+      status = "outline-primary",
+      choices = date_intervals,
+      selected = date_interval_default,
+      width = "100%"
+    ),
+    selectInput(
+      ns("count_var"),
+      label = count_vars_lab,
+      choices = count_vars,
+      multiple = FALSE,
+      selectize = FALSE,
+      width = "100%"
+    ),
+    selectInput(
+      ns("group"),
+      label = groups_lab,
+      choices = c(purrr::set_names("n", no_grouping_lab), group_vars),
+      selected = ifelse(is.null(group_var_default), "n", group_var_default),
+      multiple = FALSE,
+      selectize = FALSE,
+      width = "100%"
+    ),
+    shinyWidgets::radioGroupButtons(
+      ns("bar_stacking"),
+      label = bar_stacking_lab,
+      size = "sm",
+      status = "outline-primary",
+      choices = c("Count" = "normal", "Percent" = "percent"),
+      selected = "normal"
+    ),
+    bslib::input_switch(
+      ns("cumulative"),
+      cumul_data_lab,
+      value = FALSE,
+      width = "100%"
+    ),
+    bslib::input_switch(
+      ns("show_ratio_line"),
+      ratio_line_lab,
+      value = FALSE,
+      width = "100%"
+    ),
+    bslib::input_switch(
+      ns("add_zoom_control"),
+      zoom_control_lab,
+      value = FALSE,
+      width = "100%"
+    )
+  )
+}
+
+# =============================================================================
+# TIME MODULE HELPER FUNCTIONS
+# =============================================================================
+
+#' Prepare color palette for time module
+#' @noRd
+prepare_palette <- function(
+  n,
+  missing_data = FALSE,
+  na_colour = "#666666",
+  pal = epi_pals()$aurora,
+  alpha = 0.8
+) {
+  if (!length(pal)) {
+    pal <- epi_pals()$aurora
+  }
+  n_pal <- length(pal)
+  n_non_na <- ifelse(missing_data, n - 1, n)
+  pal <- if (n_non_na > n_pal && n_non_na < 10) {
+    grDevices::colorRampPalette(epi_pals()$aurora)(n_non_na)
+  } else if (n_non_na > n_pal) {
+    epi_pals()$pal20
+  } else {
+    pal
+  }
+  if (missing_data) {
+    pal[n] <- na_colour
+  }
+  scales::alpha(pal, alpha)
+}
+
+#' Generate week labels for highcharts
+#' @noRd
+hc_week_labels <- function(week_letter = getOption("epishiny.week.letter", "W")) {
+  highcharter::JS(
+    glue::glue(
+      "function () {
+         var date = new Date(this.value);
+         var year = date.getWeekYear();
+         var week = date.getWeek();
+         return year + '-{{week_letter}}' + week;
+     }",
+      .open = "{{",
+      .close = "}}"
+    )
   )
 }

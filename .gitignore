@@ -7,3 +7,5 @@
 docs
 inst/doc
 *.html
+.claude
+CLAUDE.md

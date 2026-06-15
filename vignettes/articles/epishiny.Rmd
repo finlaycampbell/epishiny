@@ -38,116 +38,218 @@ options(
 
 ## Setting up data for epishiny
 
-`epishiny` can work with either aggregated or un-aggregated data. Here we will use an 
-example of an un-aggregated 'linelist' dataset. A linelist is a (tidy) data format used in 
-public health data collection with each row representing an individual (patient, participant, etc) 
+`epishiny` can work with either aggregated or un-aggregated data. Here we will use an
+example of an un-aggregated 'linelist' dataset. A linelist is a (tidy) data format used in
+public health data collection with each row representing an individual (patient, participant, etc)
 and each column representing a variable associated with said individual.
 
-`df_ll` is an example dataset within the package containing data for a fake measles outbreak in Yemen. 
+`df_ll_ebola` is an example dataset within the package containing data for a simulated Ebola outbreak in Sierra Leone.
 The data contains temporal, demographic, and geographic information for each patient, as well as other medical indicators.
 
 ```{r}
-glimpse(df_ll)
+glimpse(df_ll_ebola)
 ```
 
-We have geographical patient origin data contained in the `adm` columns, each being an administrative boundary level in Yemen.
-If we wan't to visualise this data on a map we need to provide accompanying geo data that we can match to the linelist data.
-`sf_yem`, a dataset within the package, is a list containing geo boundary data for adm1 and adm2 levels in Yemen, stored
+We have geographical patient origin data contained in the `adm` columns, representing administrative boundary levels in Sierra Leone.
+To visualise this data on a map we need to provide accompanying geo data that we can match to the linelist data.
+`sf_sle` is a dataset within the package containing geo boundary data for admin levels 3 and 4 in Sierra Leone, stored
 as [sf](https://r-spatial.github.io/sf/) objects.
 
 ```{r}
-sf_yem
+sf_sle
 ```
 
-Luckily we can easily match this to the linelist data via the `pcode` columns. In real world scenarios, you might not have
-harmonious pcodes available in your data, so if you need help matching messy epi data to geo data, check out our 
+We can easily match this to the linelist data via the `pcode` columns. In real world scenarios, you might not have
+harmonious pcodes available in your data, so if you need help matching messy epi data to geo data, check out our
 [hmatch package](https://epicentre-msf.github.io/hmatch/).
 
 Now let's set up the geo data in the format required for epishiny. We use the `geo_layer()` function to define a layer, and
 since we have multiple layers in this case, we combine them in a list.
 
 ```{r eval=FALSE}
-# setup geo data for adm1 and adm2 using the
+# Setup geo data for admin 3 and admin 4 using the
 # geo_layer function to be passed to the place module
-# if population variable is provided, attack rates
+# If population variable is provided, attack rates
 # will be shown on the map as a choropleth
 geo_data <- list(
   geo_layer(
-    layer_name = "Governorate", # name of the boundary layer
-    sf = sf_yem$adm1, # sf object with boundary polygons
-    name_var = "adm1_name", # column with place names
-    pop_var = "adm1_pop", # column with population data (optional)
-    join_by = c("pcode" = "adm1_pcode") # geo to data join vars: LHS = sf, RHS = data
+    layer_name = "Admin 3", # name of the boundary layer
+    sf = sf_sle$adm3, # sf object with boundary polygons
+    name_var = "adm3_name", # column with place names
+    pop_var = "adm3_pop", # column with population data (optional)
+    join_by = c("pcode" = "adm3_pcode") # geo to data join vars: LHS = sf, RHS = data
   ),
   geo_layer(
-    layer_name = "District",
-    sf = sf_yem$adm2,
-    name_var = "adm2_name",
-    pop_var = "adm2_pop",
-    join_by = c("pcode" = "adm2_pcode")
+    layer_name = "Admin 4",
+    sf = sf_sle$adm4,
+    name_var = "adm4_name",
+    join_by = c("pcode" = "adm4_pcode")
   )
 )
 ```
 
-## Launching modules
+## Building a dashboard
 
-Now we have everything we need to launch the `time`, `place` and `person` modules. 
-As well as for use in dashboards, each epishiny module can be launched individually from within an R script.
-Below is an example of each module passing the minimum required arguments. See each modules documentation
-(`?time_server`, `?place_server`, `?person_server`) for full details of all features and arguments that can be passed.
+The quickest way to create a full-featured epidemiological dashboard is with the `epi_dashboard()` function.
+This function handles all the shiny boilerplate code and gives you a complete time-place-person dashboard with
+interactive filtering in just a few lines of code.
 
-### Time
+**When to use `epi_dashboard()`:** This function is ideal for quickly launching an interactive dashboard to
+explore your data during analysis. However, if you're building a dashboard for publication or need to include
+additional analysis, custom visualizations, or contextual information beyond the standard modules, you'll want
+to build a custom dashboard yourself by incorporating the individual epishiny modules wherever needed. See the
+[Custom dashboards](#custom-dashboards) section below for how to build custom dashboards.
+
+### Basic dashboard
+
+Here's a complete dashboard with all three modules (place, time, and person):
 
 ```{r eval=FALSE}
+# Create a complete dashboard
+app <- epi_dashboard(
+  df = df_ll_ebola,
+  # Time module arguments
+  date_vars = c("Date of onset" = "date_of_onset"),
+  # Place module arguments
+  geo_data = geo_data,
+  # Person module arguments
+  age_var = "age",
+  sex_var = "gender",
+  male_level = "m",
+  female_level = "f",
+  # Filter module arguments
+  group_vars = c(
+    "Hospital" = "hospital",
+    "Gender" = "gender",
+    "Outcome" = "outcome"
+  )
+)
+
+# Launch the dashboard
+if (interactive()) {
+  shiny::runApp(app)
+}
+```
+
+<img src="../reference/figures/dashboard.png" width="100%"/>
+
+### Customizing the layout
+
+You can customize which modules to include and how they're arranged using the `modules` and `col_widths` arguments:
+
+```{r eval=FALSE}
+# Time module on full-width top row, then place and person below
+app <- epi_dashboard(
+  df = df_ll_ebola,
+  modules = c("time", "place", "person"), # order determines layout
+  col_widths = c(12, 7, 5), # time gets 12 cols, place gets 7, person gets 5
+  title = "Ebola Outbreak Dashboard",
+  date_vars = c(
+    "Date of onset" = "date_of_onset",
+    "Date of hospitalisation" = "date_of_hospitalisation"
+  ),
+  geo_data = geo_data,
+  age_var = "age",
+  sex_var = "gender",
+  male_level = "m",
+  female_level = "f",
+  group_vars = c("Hospital" = "hospital", "Gender" = "gender")
+)
+```
+
+```{r eval=FALSE}
+# Simple dashboard with just time and person modules (no map)
+app <- epi_dashboard(
+  df = df_ll_ebola,
+  modules = c("time", "person"),
+  title = "Time & Demographics",
+  date_vars = c("Date of onset" = "date_of_onset"),
+  age_var = "age",
+  sex_var = "gender",
+  male_level = "m",
+  female_level = "f"
+)
+```
+
+```{r eval=FALSE}
+# Dashboard without the filter sidebar
+app <- epi_dashboard(
+  df = df_ll_ebola,
+  include_filter = FALSE,
+  date_vars = c("Date of onset" = "date_of_onset"),
+  geo_data = geo_data,
+  age_var = "age",
+  sex_var = "gender",
+  male_level = "m",
+  female_level = "f"
+)
+```
+
+The `epi_dashboard()` function automatically routes arguments to the appropriate modules, so you can pass any
+argument that the underlying module functions accept. See `?epi_dashboard` for full details.
+
+## Individual modules
+
+Now let's look at the individual `time`, `place` and `person` modules that power the dashboard.
+Each module can be launched on its own for quick exploration, or incorporated into custom dashboards.
+Below is an example of each module with the minimum required arguments. See each module's documentation
+(`?time_server`, `?place_server`, `?person_server`) for full details of all features and arguments that can be passed.
+
+You can launch any module individually using `launch_module()`:
+
+```{r eval=FALSE}
+# Time module - interactive epicurves
 launch_module(
-  module= "time",
-  df = df_ll,
-  date_vars = "date_notification"
+  module = "time",
+  df = df_ll_ebola,
+  date_vars = "date_of_onset"
+)
+
+# Place module - interactive maps
+launch_module(
+  module = "place",
+  df = df_ll_ebola,
+  geo_data = geo_data
+)
+
+# Person module - demographics and population pyramids
+launch_module(
+  module = "person",
+  df = df_ll_ebola,
+  age_var = "age",
+  sex_var = "gender",
+  male_level = "m",
+  female_level = "f"
 )
 ```
 
 <img src="../reference/figures/time.png" width="100%"/>
-
-### Place
-
-```{r eval=FALSE}
-# launch place map module
-launch_module(
-  module = "place",
-  df = df_ll,
-  geo_data = geo_data
-)
-```
-
 <img src="../reference/figures/place.png" width="100%"/>
-
-### Person
-
-```{r eval=FALSE}
-launch_module(
-  module= "person",
-  df = df_ll,
-  age_group_var = "age_group",
-  sex_var = "sex_id",
-  male_level = "Male",
-  female_level = "Female"
-)
-```
-
 <img src="../reference/figures/person.png" width="100%"/>
 
-## Dashboards
+## Custom dashboards
 
-`epishiny` modules can be included in any shiny dashboard by adding the `module_ui` component to the shiny ui function,
-and the `module_server` component to the shiny server function. If you're new to shiny, don't worry, `epishiny` is designed 
-so that you can build fully-featured dashboards without worrying about what is happening on the shiny back-end. But if you do want to 
-learn more, a good place to start is the [Mastering Shiny](https://mastering-shiny.org/) book, authored by Hadley Wickham.
+For production dashboards that need additional analysis, context, or customisation beyond what `epi_dashboard()` provides,
+you can build custom dashboards by incorporating the individual epishiny modules into your own shiny application.
 
-`epishiny` modules use UI elements from the [bslib](https://rstudio.github.io/bslib/index.html) package, so the only constraint 
-is that you use `bslib` for your dashboards user interface. See the [bslib shiny dashboards](https://rstudio.github.io/bslib/articles/dashboards/index.html)
-article for full details on designing a UI with `bslib`. 
+`epishiny` modules can be included in any shiny dashboard by adding the `*_ui()` component to your UI and the
+`*_server()` component to your server function. The modules use UI elements from the [bslib](https://rstudio.github.io/bslib/index.html)
+package, so you'll need to use `bslib` for your dashboard's user interface. See the
+[bslib shiny dashboards](https://rstudio.github.io/bslib/articles/dashboards/index.html) article for full details on designing
+UIs with `bslib`.
 
-Below is a full dashboard example incorporating all `epishiny` modules in a `bslib` user interface.
+If you're new to shiny, a good place to start is the [Mastering Shiny](https://mastering-shiny.org/) book by Hadley Wickham.
+
+Below is a complete custom dashboard example incorporating all `epishiny` modules, which gives you full control over the
+layout, additional content, and module interactions:
 
 ```{r eval=FALSE, file='../../inst/examples/docs/app.R'}
 ```
+
+This custom approach allows you to:
+
+- Add custom analysis outputs, text, or visualizations alongside epishiny modules
+- Control the exact layout and styling with bslib components
+- Integrate with other shiny modules or packages
+- Add custom reactive logic and module interactions
+- Include additional UI elements like value boxes, tabs, or navbars

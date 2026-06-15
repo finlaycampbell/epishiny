@@ -10,6 +10,7 @@ time_ui(
   date_vars,
   count_vars = NULL,
   group_vars = NULL,
+  group_var_default = NULL,
   title = "Time",
   icon = bsicons::bs_icon("calendar2-week"),
   tooltip = NULL,
@@ -17,6 +18,7 @@ time_ui(
   date_lab = "Date axis",
   date_int_lab = "Date interval",
   date_intervals = c(Day = "day", Week = "week", Month = "month"),
+  date_interval_default = ifelse("week" \%in\% date_intervals, "week", date_intervals[1]),
   count_vars_lab = "Indicator",
   groups_lab = "Group data by",
   no_grouping_lab = "No grouping",
@@ -24,7 +26,10 @@ time_ui(
   cumul_data_lab = "Show cumulative data?",
   ratio_line_lab = "Show ratio line?",
   zoom_control_lab = "Add zoom control slider?",
-  full_screen = TRUE
+  full_screen = TRUE,
+  use_sidebar = TRUE,
+  sidebar_title = NULL,
+  sidebar_width = 250
 )
 
 time_server(
@@ -57,6 +62,9 @@ a select input will appear in the options dropdown. If named, names are used as 
 in the options dropdown allowing for data groups to be visualised as stacked bars on the epicurve.
 If named, names are used as variable labels.}
 
+\item{group_var_default}{Character string of variable name in \code{group_vars} to use as default grouping variable.
+If NULL, no default is set and "No grouping" option will be selected by default.}
+
 \item{title}{Header title for the card.}
 
 \item{icon}{The icon to display next to the title.}
@@ -71,6 +79,9 @@ If named, names are used as variable labels.}
 
 \item{date_intervals}{Character vector with choices for date aggregation intervals passed to the \code{unit}
 argument of \link[lubridate:round_date]{lubridate::floor_date}. If named, names are used as labels. Default is c('day', 'week', 'year').}
+
+\item{date_interval_default}{Character string of default date interval to use. Must be one of the values provided in \code{date_intervals}.
+Defaults to "week" if available, otherwise the first value in \code{date_intervals}.}
 
 \item{count_vars_lab}{text label for the aggregate count variables input.}
 
@@ -88,6 +99,12 @@ argument of \link[lubridate:round_date]{lubridate::floor_date}. If named, names 
 \item{zoom_control_lab}{text label for the zoom control option.}
 
 \item{full_screen}{Add button to card to with the option to enter full screen mode?}
+
+\item{use_sidebar}{Logical. If TRUE, displays options in a sidebar instead of popover button. Default TRUE.}
+
+\item{sidebar_title}{String. Title for the sidebar. Only used if use_sidebar = TRUE. Default "Chart options".}
+
+\item{sidebar_width}{Numeric. Width of sidebar in pixels. Only used if use_sidebar = TRUE. Default 250.}
 
 \item{df}{Data frame or tibble of patient level or aggregated data. Can be either a shiny reactive or static dataset.}
 
@@ -107,14 +124,15 @@ For aggregated data, character string of numeric count column to use of ratio de
 
 \item{na_colour}{Colour used for missing data.}
 
-\item{place_filter}{supply the output of \code{\link[=place_server]{place_server()}} wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} here to filter
-the data by click events on the place module map (clicking a polygon will filter the data to the clicked region)}
+\item{place_filter}{supply the output of \code{\link[=place_server]{place_server()}} here to filter
+the data by click events on the place module map (clicking a polygon
+will filter the data to the clicked region)}
 
 \item{filter_info}{If contained within an app using \code{\link[=filter_server]{filter_server()}}, supply the \code{filter_info} object
-returned by that function here wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} to add filter information to chart exports.}
+returned by that function here to add filter information to chart exports.}
 
 \item{filter_reset}{If contained within an app using \code{\link[=filter_server]{filter_server()}}, supply the \code{filter_reset} object
-returned by that function here wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} to reset any click event filters that have been set from by module.}
+returned by that function here to reset any click event filters that have been set from by module.}
 }
 \value{
 the module server function returns any point click event data of the highchart.

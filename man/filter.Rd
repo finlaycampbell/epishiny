@@ -7,29 +7,33 @@
 \usage{
 filter_ui(
   id,
-  group_vars,
+  date_vars = NULL,
+  group_vars = NULL,
   title = tags$span(bsicons::bs_icon("filter"), "Filters"),
   date_filters_lab = "Date filters",
-  period_lab = "Period",
   missing_dates_lab = "Include patients with missing dates?",
   group_filters_lab = "Group filters",
   filter_btn_lab = "update",
   filter_btn_tooltip = "Click here to apply filters and update the graphics",
   reset_btn_lab = "Reset",
-  bg = "#fff"
+  bg = "#fff",
+  wrapper = function(...) bslib::sidebar(..., id = id, bg = bg)
 )
 
 filter_server(
   id,
   df,
-  date_var,
-  group_vars,
+  date_vars = NULL,
+  group_vars = NULL,
   time_filter = shiny::reactiveVal(),
-  place_filter = shiny::reactiveVal()
+  place_filter = shiny::reactiveVal(),
+  reset = shiny::reactiveVal()
 )
 }
 \arguments{
 \item{id}{Module id. Must be the same in both the UI and server function to link the two.}
+
+\item{date_vars}{named character vector of date variables in the data frame to be filtered on. Names are used as labels, values as column names.}
 
 \item{group_vars}{named character vector of categorical variables for the data grouping input. Names are used as variable labels.}
 
@@ -37,9 +41,7 @@ filter_server(
 
 \item{date_filters_lab}{The label for the date filters accordion panel.}
 
-\item{period_lab}{The label for the date range input.}
-
-\item{missing_dates_lab}{The label for the include missing dates checkbox.}
+\item{missing_dates_lab}{The label for the include missing dates switch (only shown for single date variable).}
 
 \item{group_filters_lab}{The label for the group filters accordion panel.}
 
@@ -51,22 +53,32 @@ filter_server(
 
 \item{bg}{The background color of the sidebar.}
 
+\item{wrapper}{A function that wraps the sidebar UI elements. Defaults to \link[bslib:sidebar]{bslib::sidebar}.
+Change if you don't want the filter UI to be a sidebar.}
+
 \item{df}{Data frame or tibble of patient level or aggregated data. Can be either a shiny reactive or static dataset.}
 
-\item{date_var}{The name of the date variable in the data frame to be filtered on.}
-
-\item{time_filter}{supply the output of \code{\link[=time_server]{time_server()}} wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} here to add
+\item{time_filter}{supply the output of \code{\link[=time_server]{time_server()}} here to add
 its filter information to the filter sidebar}
 
-\item{place_filter}{supply the output of \code{\link[=place_server]{place_server()}} wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}} here to add
+\item{place_filter}{supply the output of \code{\link[=place_server]{place_server()}} here to add
 its filter information to the filter sidebar}
+
+\item{reset}{A \code{\link[shiny:reactive]{shiny::reactive()}} or \code{\link[shiny:reactiveVal]{shiny::reactiveVal()}} used as an external
+trigger to reset all filter inputs to their initial values, clear the displayed
+filter info, and return the unfiltered dataset. The reset fires whenever the
+reactive emits a non-\code{NULL} value (e.g. update it with \code{Sys.time()} or an
+incrementing counter from an \code{actionButton}). The same value is propagated to
+the returned \code{filter_reset} reactive so that connected modules (time, place)
+can clear their own click filters.}
 }
 \value{
-A \link[bslib:sidebar]{bslib::sidebar} UI element with date filters, group filters, and action buttons.
+A UI \code{wrapper} with date filters, group filters, and action buttons.
 
-The server function returns both the filtered data and a formatted text string with filter information
-named \code{df} and \code{filter_info} respectively in a reactive list. These should be passed as arguments
-of the same name in the time, place and person modules wrapped in a \code{\link[shiny:reactive]{shiny::reactive()}}
+The server function returns a list containing reactive functions named \code{df}
+and \code{filter_info}. Access these as \code{app_data$df} and \code{app_data$filter_info}
+(not \code{app_data()$df}). These can be passed directly to the time, place,
+and person modules.
 }
 \description{
 Filter linelist data using a sidebar with shiny inputs.
@@ -77,48 +89,42 @@ library(bslib)
 library(epishiny)
 
 # example package data
-data("df_ll") # linelist
-data("sf_yem") # sf geo boundaries for Yemen admin 1 & 2
+data("df_ll_ebola") # linelist
+data("sf_sle") # sf geo boundaries for Sierra Leone admin 3 & 4
 
-# setup geo data for adm1 and adm2 using the
+# setup geo data for admin 3 and admin 4 using the
 # geo_layer function to be passed to the place module
 # if population variable is provided, attack rates
 # will be shown on the map as a choropleth
 geo_data <- list(
   geo_layer(
-    layer_name = "Governorate", # name of the boundary level
-    sf = sf_yem$adm1, # sf object with boundary polygons
-    name_var = "adm1_name", # column with place names
-    pop_var = "adm1_pop", # column with population data (optional)
-    join_by = c("pcode" = "adm1_pcode") # geo to data join vars: LHS = sf, RHS = data
+    layer_name = "Admin 3", # name of the boundary level
+    sf = sf_sle$adm3, # sf object with boundary polygons
+    name_var = "adm3_name", # column with place names
+    pop_var = "adm3_pop", # column with population data (optional)
+    join_by = c("pcode" = "adm3_pcode") # geo to data join vars: LHS = sf, RHS = data
   ),
   geo_layer(
-    layer_name = "District",
-    sf = sf_yem$adm2,
-    name_var = "adm2_name",
-    pop_var = "adm2_pop",
-    join_by = c("pcode" = "adm2_pcode")
+    layer_name = "Admin 4",
+    sf = sf_sle$adm4,
+    name_var = "adm4_name",
+    join_by = c("pcode" = "adm4_pcode")
   )
 )
 
-# range of dates used in filter module to filter time period
-date_range <- range(df_ll$date_notification, na.rm = TRUE)
-
 # define date variables in data as named list to be used in app
 date_vars <- c(
-  "Date of notification" = "date_notification",
-  "Date of onset" = "date_symptom_start",
-  "Date of hospitalisation" = "date_hospitalisation_start",
-  "Date of outcome" = "date_hospitalisation_end"
+  "Date of onset" = "date_of_onset",
+  "Date of hospitalisation" = "date_of_hospitalisation",
+  "Date of infection" = "date_of_infection",
+  "Date of outcome" = "date_of_outcome"
 )
 
 # define categorical grouping variables
 # in data as named list to be used in app
 group_vars <- c(
-  "Governorate" = "adm1_origin",
-  "Sex" = "sex_id",
-  "Hospitalised" = "hospitalised_yn",
-  "Vaccinated measles" = "vacci_measles_yn",
+  "Hospital" = "hospital",
+  "Gender" = "gender",
   "Outcome" = "outcome"
 )
 
@@ -128,9 +134,8 @@ ui <- page_sidebar(
   # sidebar
   sidebar = filter_ui(
     "filter",
-    group_vars = group_vars,
-    # date_range = date_range,
-    period_lab = "Notification period"
+    date_vars = date_vars,
+    group_vars = group_vars
   ),
   # main content
   layout_columns(
@@ -155,37 +160,37 @@ ui <- page_sidebar(
 server <- function(input, output, session) {
   app_data <- filter_server(
     id = "filter",
-    df = df_ll,
-    date_var = "date_notification",
+    df = df_ll_ebola,
+    date_vars = date_vars,
     group_vars = group_vars
   )
   place_server(
     id = "map",
-    df = reactive(app_data()$df),
+    df = app_data$df,
     geo_data = geo_data,
     group_vars = group_vars,
-    filter_info = reactive(app_data()$filter_info)
+    filter_info = app_data$filter_info
   )
   time_server(
     id = "curve",
-    df = reactive(app_data()$df),
+    df = app_data$df,
     date_vars = date_vars,
     group_vars = group_vars,
     show_ratio = TRUE,
     ratio_var = "outcome",
     ratio_lab = "CFR",
-    ratio_numer = "Deceased",
-    ratio_denom = c("Deceased", "Healed", "Abandonment"),
-    filter_info = reactive(app_data()$filter_info)
+    ratio_numer = "Death",
+    ratio_denom = c("Death", "Recover"),
+    filter_info = app_data$filter_info
   )
   person_server(
     id = "age_sex",
-    df = reactive(app_data()$df),
-    age_var = "age_years",
-    sex_var = "sex_id",
-    male_level = "Male",
-    female_level = "Female",
-    filter_info = reactive(app_data()$filter_info)
+    df = app_data$df,
+    age_var = "age",
+    sex_var = "gender",
+    male_level = "m",
+    female_level = "f",
+    filter_info = app_data$filter_info
   )
 }
 
