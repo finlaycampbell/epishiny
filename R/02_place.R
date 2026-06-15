@@ -52,6 +52,7 @@ place_ui <- function(
   opts_btn_lab = "Map options",
   download_lab = "Download image of current map",
   choro_pal_default = "Reds",
+  choro_breaks_default = "quantile",
   geo_level_default = NULL,
   group_var_default = NULL,
   circle_size_default = 6,
@@ -110,6 +111,7 @@ place_ui <- function(
     groups_lab = groups_lab,
     circle_size_lab = circle_size_lab,
     pal_default = choro_pal_default,
+    choro_breaks_default = choro_breaks_default,
     group_var_default = group_var_default,
     circle_size_default = circle_size_default,
     symbols_active_default = symbols_active_default
@@ -982,6 +984,7 @@ place_options_ui <- function(
   groups_lab,
   circle_size_lab,
   pal_default = "Reds",
+  choro_breaks_default = "quantile",
   group_var_default = NULL,
   circle_size_default = 6,
   symbols_active_default = TRUE
@@ -1036,7 +1039,7 @@ place_options_ui <- function(
           ns("choro_breaks"),
           label = "Breaks Method",
           choices = choro_breaks(),
-          selected = "quantile",
+          selected = choro_breaks_default,
           multiple = FALSE,
           selectize = FALSE
         ),
@@ -1899,31 +1902,31 @@ make_leaf_tooltip <- function(
 
   counts <- ifelse(is.na(df[[n_col]]), "No data", scales::number(df[[n_col]], accuracy = 1))
 
-  extra_lines <- character(0)
-  if (length(metric_vars)) {
-    for (i in seq_along(metric_vars)) {
-      col <- unname(metric_vars[i])
-      lab <- names(metric_vars)[i]
-      if (!nzchar(lab)) {
-        lab <- col
-      }
-      if (col %in% names(df)) {
-        vals <- format_metric(df[[col]])
-        extra_lines <- c(
-          extra_lines,
-          glue::glue("{lab}: <b>{vals}</b><br>")
-        )
-      }
-    }
+  # Build per-row extra metric lines (one tooltip string per polygon).
+  extra_per_row <- if (length(metric_vars) && nrow(df) > 0L) {
+    purrr::map_chr(seq_len(nrow(df)), function(i) {
+      lines <- purrr::imap_chr(metric_vars, function(col, lab) {
+        if (!nzchar(lab)) {
+          lab <- col
+        }
+        if (!col %in% names(df)) {
+          return("")
+        }
+        val <- format_metric(df[[col]][[i]])
+        glue::glue("{lab}: <b>{val}</b><br>")
+      })
+      paste(lines, collapse = "")
+    })
+  } else {
+    rep("", nrow(df))
   }
-  extra_html <- paste(extra_lines, collapse = "")
 
   if (all(!is.null(pop_col), !is.null(ar_col))) {
     pop <- ifelse(is.na(df[[pop_col]]), "No data", scales::number(df[[pop_col]], accuracy = 1))
     ar <- ifelse(is.na(df[[ar_col]]), "No data", scales::number(df[[ar_col]], accuracy = .1))
     glue::glue(
       "<b>{df[[name_col]]}</b><br>",
-      "{extra_html}",
+      "{extra_per_row}",
       "{n_lab}: <b>{counts}</b><br>",
       "{pop_lab}: <b>{pop}</b><br>",
       "{ar_lab}: <b>{ar}</b> / 100 000<br>"
@@ -1932,7 +1935,7 @@ make_leaf_tooltip <- function(
   } else {
     glue::glue(
       "<b>{df[[name_col]]}</b><br>",
-      "{extra_html}",
+      "{extra_per_row}",
       "{n_lab}: <b>{counts}</b><br>"
     ) |>
       purrr::map(shiny::HTML)
