@@ -431,63 +431,59 @@ place_server <- function(
       }) %>%
         bindEvent(geo_select())
 
-      # update reactive values whenever inputs change
+      # Geo join metadata (independent of sidebar option inputs)
       observe({
         shiny::req(input$geo_level, geo_select())
 
         geo_join <- geo_select()$join_by
         join_cols <- if (rlang::is_named(geo_join)) names(geo_join) else geo_join
         geo_col <- unname(geo_join)
-        geo_col_sym <- rlang::sym(geo_col)
-        geo_name_col <- geo_select()$name_var
-        geo_level_name <- geo_select()$layer_name
-        geo_pop_var <- geo_select()$pop_var
+
+        rv$geo_join <- geo_join
+        rv$join_cols <- join_cols
+        rv$geo_col <- geo_col
+        rv$geo_col_sym <- rlang::sym(geo_col)
+        rv$geo_name_col <- geo_select()$name_var
+        rv$geo_level_name <- geo_select()$layer_name
+        rv$geo_pop_var <- geo_select()$pop_var
+      })
+
+      # Map display options (sidebar inputs; use defaults when not yet available)
+      observe({
+        shiny::req(rv$geo_col, geo_select())
+
         map_var <- input$var %||% "n"
         var_list <- c("n", group_vars)
         map_var_lab <- get_label(map_var, var_list)
 
         if (length(count_vars)) {
-          shiny::req(input$count_var)
-          count_var <- input$count_var
+          count_var <- input$count_var %||% unname(count_vars)[1]
+          n_lab <- get_label(count_var, count_vars)
+          choro_indicator <- input$choro_indicator %||% unname(count_vars)[1]
         } else {
           count_var <- NULL
-        }
-        n_lab <- if (length(count_vars)) {
-          get_label(count_var, count_vars)
-        } else {
-          getOption("epishiny.count.label", "Cases")
+          n_lab <- getOption("epishiny.count.label", "Cases")
+          choro_indicator <- NULL
         }
 
-        # Choropleth layer selections
-        choro_indicator <- if (length(count_vars)) {
-          input$choro_indicator %||% unname(count_vars)[1]
-        } else {
-          NULL
-        }
         choro_display <- input$choro_var %||% "attack_rate"
 
-        # Determine which column to visualize in choropleth
         choro_col <- if (choro_display == "attack_rate") {
-          if (is_agg && length(count_vars) > 1) paste0("attack_rate_", choro_indicator) else "attack_rate"
+          if (is_agg && length(count_vars) > 1) {
+            paste0("attack_rate_", choro_indicator)
+          } else {
+            "attack_rate"
+          }
         } else {
           if (is_agg) choro_indicator else "total"
         }
 
-        # # Get label for legend
         choro_lab <- if (choro_display == "attack_rate") {
           paste(get_label(choro_indicator, count_vars), choro_lab_rate)
         } else {
           get_label(choro_indicator, count_vars)
         }
 
-        # save as reactive values
-        rv$geo_join <- geo_join
-        rv$join_cols <- join_cols
-        rv$geo_col <- geo_col
-        rv$geo_col_sym <- geo_col_sym
-        rv$geo_name_col <- geo_name_col
-        rv$geo_level_name <- geo_level_name
-        rv$geo_pop_var <- geo_pop_var
         rv$map_var <- map_var
         rv$map_var_lab <- map_var_lab
         rv$count_var <- count_var
@@ -583,6 +579,14 @@ place_server <- function(
 
       # join data to boundaries and compute attack rates
       df_geo_counts <- reactive({
+        shiny::req(
+          rv$sf,
+          rv$geo_col,
+          rv$geo_join,
+          rv$join_cols,
+          rv$geo_name_col
+        )
+
         prepare_geo_data(
           df = df_mod(),
           sf = rv$sf,
@@ -594,9 +598,19 @@ place_server <- function(
           count_vars = if (is_agg) count_vars else NULL
         )
       }) %>%
-        bindEvent(df_mod(), rv$sf)
+        bindEvent(
+          df_mod(),
+          rv$sf,
+          rv$geo_col,
+          rv$geo_join,
+          rv$join_cols,
+          rv$geo_name_col,
+          rv$geo_pop_var
+        )
 
       df_map_circles <- reactive({
+        shiny::req(rv$geo_col, rv$geo_join, df_geo_counts())
+
         get_map_circle_df(
           df_raw = df_mod(),
           df_geo = df_geo_counts(),
