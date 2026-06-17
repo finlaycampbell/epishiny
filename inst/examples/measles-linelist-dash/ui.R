@@ -14,10 +14,12 @@ ui <- tagList(
       success = "#94BA3B"
     ),
 
+    language_selector_ui(position = "navbar"),
+
     # nav pages
     nav_panel(
       class = "bslib-page-dashboard",
-      tags$span(shiny::icon("chart-column"), "Demo"),
+      tags$span(shiny::icon("chart-column"), epishiny_tr("Demo")),
       layout_sidebar(
         # sidebar
         sidebar = filter_ui(
@@ -30,7 +32,9 @@ ui <- tagList(
           width = 1 / 2,
           place_ui(
             id = "map",
-            tooltip = "Click on a polygon to filter other graphics to this region",
+            tooltip = epishiny_tr(
+              "Click on a polygon to filter other graphics to this region"
+            ),
             geo_data = geo_data,
             group_vars = group_vars
           ),
@@ -38,10 +42,12 @@ ui <- tagList(
             width = 1,
             time_ui(
               id = "curve",
-              tooltip = "Click on a bar to filter other graphics to this period",
+              tooltip = epishiny_tr(
+                "Click on a bar to filter other graphics to this period"
+              ),
               date_vars = date_vars,
               group_vars = group_vars,
-              ratio_line_lab = "Show CFR line?"
+              ratio_line_lab = epishiny_tr("Show CFR line?")
             ),
             person_ui(id = "age_sex")
           )
@@ -51,7 +57,7 @@ ui <- tagList(
 
     nav_item(
       tags$a(
-        tags$span(shiny::icon("info"), "About"),
+        tags$span(shiny::icon("info"), epishiny_tr("About")),
         href = "https://epicentre-msf.github.io/epishiny/",
         target = "_blank"
       )

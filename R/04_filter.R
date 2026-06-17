@@ -27,7 +27,7 @@ filter_ui <- function(
   id,
   date_vars = NULL,
   group_vars = NULL,
-  title = tags$span(bsicons::bs_icon("filter"), "Filters"),
+  title = "Filters",
   date_filters_lab = "Date filters",
   missing_dates_lab = "Include patients with missing dates?",
   group_filters_lab = "Group filters",
@@ -38,6 +38,25 @@ filter_ui <- function(
   wrapper = \(...) bslib::sidebar(..., id = id, bg = bg)
 ) {
   ns <- NS(id)
+  prime_epishiny_i18n()
+
+  # Translate UI labels (spans for live language switching)
+  date_filters_lab <- epishiny_tr_ui(date_filters_lab)
+  missing_dates_lab <- epishiny_tr_ui(missing_dates_lab)
+  group_filters_lab <- epishiny_tr_ui(group_filters_lab)
+  filter_btn_lab <- epishiny_tr_ui(filter_btn_lab)
+  filter_btn_tooltip <- epishiny_tr_ui(filter_btn_tooltip)
+  reset_btn_lab <- epishiny_tr_ui(reset_btn_lab)
+  if (is.character(title)) {
+    title <- tags$span(bsicons::bs_icon("filter"), epishiny_tr_ui(title))
+  }
+
+  if (!is.null(date_vars) && rlang::is_named(date_vars)) {
+    date_vars <- epishiny_tr_names(date_vars)
+  }
+  if (!is.null(group_vars) && rlang::is_named(group_vars)) {
+    group_vars <- epishiny_tr_names(group_vars)
+  }
 
   if (is.null(date_vars) && is.null(group_vars)) {
     cli::cli_abort("At least one of date_vars or group_vars must be provided to use the filter module.")
@@ -52,6 +71,7 @@ filter_ui <- function(
   date_accordion <- if (length(date_vars)) {
     bslib::accordion_panel(
       title = date_filters_lab,
+      value = "date_filters",
       # Single date variable: show without toggle, with quick select buttons
       purrr::map2(
         date_vars,
@@ -66,6 +86,7 @@ filter_ui <- function(
   group_accordion <- if (length(group_vars)) {
     bslib::accordion_panel(
       title = group_filters_lab,
+      value = "group_filters",
       select_group_ui(
         id = ns("group-filters"),
         params = group_vars_to_params(group_vars),
@@ -88,7 +109,7 @@ filter_ui <- function(
         id = ns("go"),
         label = filter_btn_lab,
         icon = icon("refresh"),
-        label_busy = "processing",
+        label_busy = epishiny_tr_ui("processing"),
         class = "btn-sm",
         type = "link"
       ) |>
@@ -399,7 +420,9 @@ filter_server <- function(
 
         # Build final filter info string
         if (!is.null(date_filters) || !is.null(group_filters)) {
-          fi_out <- "<b>Filters applied</b>"
+          fi_out <- glue::glue(
+            "<b>{epishiny_tr('Filters applied')}</b>"
+          )
           if (!is.null(date_filters)) {
             fi_out <- glue::glue("{fi_out}</br>{glue::glue_collapse(date_filters, sep = '</br>')}")
           }
@@ -496,7 +519,7 @@ select_group_ui <- function(
   id,
   params,
   label = NULL,
-  btn_reset_label = "Reset group filters",
+  btn_reset_label = epishiny_tr("Reset group filters"),
   inline = TRUE,
   vs_args = list()
 ) {
@@ -806,6 +829,7 @@ select_group_server <- function(
 
 #' @noRd
 group_vars_to_params <- function(group_vars, selected = "", placeholder = "All") {
+  placeholder <- epishiny_tr(placeholder)
   if (!rlang::is_named(group_vars)) {
     group_vars <- rlang::set_names(group_vars)
   }
@@ -844,7 +868,7 @@ setup_date_filter <- function(var, lab, ns, single_date = FALSE, ...) {
         format = "d/m/yy"
       ),
       # Quick select buttons as button group
-      helpText("Quick select:"),
+      helpText(epishiny_tr("Quick select:")),
       div(
         class = "btn-group w-100",
         role = "group",

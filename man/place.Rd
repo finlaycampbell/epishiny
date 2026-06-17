@@ -21,6 +21,11 @@ place_ui(
   opts_btn_lab = "Map options",
   download_lab = "Download image of current map",
   choro_pal_default = "Reds",
+  choro_breaks_default = "quantile",
+  geo_level_default = NULL,
+  group_var_default = NULL,
+  circle_size_default = 6,
+  symbols_active_default = TRUE,
   full_screen = TRUE,
   use_sidebar = TRUE,
   sidebar_title = NULL,
@@ -40,7 +45,10 @@ place_server(
   export_height = 650,
   time_filter = shiny::reactiveVal(),
   filter_info = shiny::reactiveVal(),
-  filter_reset = shiny::reactiveVal()
+  filter_reset = shiny::reactiveVal(),
+  tooltip_vars = NULL,
+  pie_palette = NULL,
+  geo_level_default = NULL
 )
 }
 \arguments{
@@ -79,6 +87,14 @@ If named, names are used as variable labels.}
 
 \item{choro_pal_default}{RColorBrewer or viridis palette name to be used as the default option of the choropleth layer palette input.}
 
+\item{geo_level_default}{Initial geo boundary level (\code{layer_name}).}
+
+\item{group_var_default}{Initial pie grouping variable (column name from \code{group_vars}).}
+
+\item{circle_size_default}{Initial value for the circle size slider.}
+
+\item{symbols_active_default}{Initial value for the symbols layer switch.}
+
 \item{full_screen}{Add button to card to with the option to enter full screen mode?}
 
 \item{use_sidebar}{Logical. If TRUE, displays options in a sidebar instead of popover button. Default TRUE.}
@@ -108,6 +124,10 @@ returned by that function here to add filter information to chart exports.}
 
 \item{filter_reset}{If contained within an app using \code{\link[=filter_server]{filter_server()}}, supply the \code{filter_reset} object
 returned by that function here to reset any click event filters that have been set from by module.}
+
+\item{tooltip_vars}{Named character vector of numeric columns to show in polygon tooltips.}
+
+\item{pie_palette}{Optional named list of named colour vectors keyed by grouping variable name.}
 }
 \value{
 A \link[bslib:card]{bslib::card} UI element with options (in popover or sidebar) and a leaflet map.

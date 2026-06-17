@@ -68,11 +68,45 @@ time_ui <- function(
   sidebar_width = 250
 ) {
   ns <- NS(id)
+  prime_epishiny_i18n()
+
+  # Translate UI labels (spans for live language switching)
+  title <- epishiny_tr_ui(title)
+  opts_btn_lab <- epishiny_tr_ui(opts_btn_lab)
+  date_lab <- epishiny_tr_ui(date_lab)
+  date_int_lab <- epishiny_tr_ui(date_int_lab)
+  date_intervals <- epishiny_tr_names(date_intervals)
+  count_vars_lab <- epishiny_tr_ui(count_vars_lab)
+  groups_lab <- epishiny_tr_ui(groups_lab)
+  no_grouping_lab <- epishiny_tr(no_grouping_lab)
+  bar_stacking_lab <- epishiny_tr_ui(bar_stacking_lab)
+  cumul_data_lab <- epishiny_tr_ui(cumul_data_lab)
+  ratio_line_lab <- epishiny_tr_ui(ratio_line_lab)
+  zoom_control_lab <- epishiny_tr_ui(zoom_control_lab)
+  if (is.null(sidebar_title)) {
+    sidebar_title <- epishiny_tr_ui("Chart options")
+  } else {
+    sidebar_title <- epishiny_tr_ui(sidebar_title)
+  }
 
   # check deps are installed
   pkg_deps <- c("highcharter", "lubridate")
   if (!rlang::is_installed(pkg_deps)) {
     rlang::check_installed(pkg_deps, reason = "to use the epishiny time module.")
+  }
+
+  if (length(tooltip) && is.character(tooltip)) {
+    tooltip <- epishiny_tr_ui(tooltip)
+  }
+
+  if (rlang::is_named(date_vars)) {
+    date_vars <- epishiny_tr_names(date_vars)
+  }
+  if (!is.null(count_vars) && rlang::is_named(count_vars)) {
+    count_vars <- epishiny_tr_names(count_vars)
+  }
+  if (!is.null(group_vars) && rlang::is_named(group_vars)) {
+    group_vars <- epishiny_tr_names(group_vars)
   }
 
   if (length(tooltip)) {
@@ -276,7 +310,7 @@ time_server <- function(
         if (length(count_vars)) {
           shiny::req(input$count_var)
           rv$count_var <- input$count_var
-          rv$n_lab <- get_label(input$count_var, count_vars)
+          rv$n_lab <- get_label_tr(input$count_var, count_vars)
         } else {
           rv$count_var <- NULL
           rv$n_lab <- getOption("epishiny.count.label", "Cases")
@@ -354,9 +388,9 @@ time_server <- function(
           "n"
         )
 
-        shiny::validate(shiny::need(nrow(df) > 0, "No data to display"))
+        shiny::validate(shiny::need(nrow(df) > 0, epishiny_tr("No data to display")))
 
-        date_lab <- get_label(date, date_vars)
+        date_lab <- get_label_tr(date, date_vars)
 
         click_js <- highcharter::JS(
           glue::glue(
@@ -378,10 +412,10 @@ time_server <- function(
           ) %>%
             highcharter::hc_tooltip(shared = TRUE)
         } else {
-          group_lab <- get_label(group, group_vars)
+          group_lab <- get_label_tr(group, group_vars)
 
           text_legend <- glue::glue(
-            '{group_lab}<br/><span style="font-size: 9px; color: #666; font-weight: normal">(click to filter)</span>'
+            '{group_lab}<br/><span style="font-size: 9px; color: #666; font-weight: normal">{epishiny_tr("(click to filter)")}</span>'
           )
 
           if (any(is.na(df[[group]]))) {
@@ -534,7 +568,10 @@ time_server <- function(
           hc <- hc %>%
             highcharter::hc_credits(
               enabled = TRUE,
-              text = glue::glue("Missing {tolower(date_lab)} for {scales::number(missing_dates)} {tolower(y_lab)}")
+              text = glue::glue(
+                "{epishiny_tr('Missing')} {tolower(date_lab)} ",
+                "{scales::number(missing_dates)} {tolower(y_lab)}"
+              )
             )
         }
 
@@ -1052,7 +1089,10 @@ time_options_ui <- function(
       label = bar_stacking_lab,
       size = "sm",
       status = "outline-primary",
-      choices = c("Count" = "normal", "Percent" = "percent"),
+      choices = stats::setNames(
+        c("normal", "percent"),
+        c(epishiny_tr("Count"), epishiny_tr("Percent"))
+      ),
       selected = "normal"
     ),
     bslib::input_switch(

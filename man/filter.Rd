@@ -9,7 +9,7 @@ filter_ui(
   id,
   date_vars = NULL,
   group_vars = NULL,
-  title = tags$span(bsicons::bs_icon("filter"), "Filters"),
+  title = "Filters",
   date_filters_lab = "Date filters",
   missing_dates_lab = "Include patients with missing dates?",
   group_filters_lab = "Group filters",

@@ -38,6 +38,20 @@ person_ui <- function(
   sidebar_width = 250
 ) {
   ns <- shiny::NS(id)
+  prime_epishiny_i18n()
+
+  # Translate UI labels (spans for live language switching)
+  title <- epishiny_tr_ui(title)
+  opts_btn_lab <- epishiny_tr_ui(opts_btn_lab)
+  count_vars_lab <- epishiny_tr_ui(count_vars_lab)
+  age_breaks_lab <- epishiny_tr_ui(age_breaks_lab)
+  age_breaks_help <- epishiny_tr_ui(age_breaks_help)
+  age_breaks_apply_lab <- epishiny_tr_ui(age_breaks_apply_lab)
+  if (is.null(sidebar_title)) {
+    sidebar_title <- epishiny_tr_ui("Options")
+  } else {
+    sidebar_title <- epishiny_tr_ui(sidebar_title)
+  }
 
   # check deps are installed
   pkg_deps <- c("highcharter", "gt", "gtsummary")
@@ -109,12 +123,12 @@ person_ui <- function(
         }
       ),
       bslib::nav_panel(
-        title = shiny::icon("chart-bar") |> bslib::tooltip("Chart"),
+        title = shiny::icon("chart-bar") |> bslib::tooltip(epishiny_tr("Chart")),
         class = "p-0",
         highcharter::highchartOutput(ns("as_pyramid"))
       ),
       bslib::nav_panel(
-        title = bsicons::bs_icon("table") |> bslib::tooltip("Table"),
+        title = bsicons::bs_icon("table") |> bslib::tooltip(epishiny_tr("Table")),
         class = "p-0",
         tags$div(
           id = ns("as_tbl_container"),
@@ -331,7 +345,7 @@ person_server <- function(
       })
 
       output$as_pyramid <- highcharter::renderHighchart({
-        shiny::validate(shiny::need(nrow(df_mod()) > 0, "No data to display"))
+        shiny::validate(shiny::need(nrow(df_mod()) > 0, epishiny_tr("No data to display")))
 
         # prepare data for pyramid chart
         hc_dat <- hc_dat()
@@ -343,7 +357,7 @@ person_server <- function(
           missing_sex = hc_dat$missing_sex,
           colours = colours,
           ylab = age_group_lab,
-          value_name = get_label(input$count_var, count_vars),
+          value_name = get_label_tr(input$count_var, count_vars),
           filter_info = filter_info_out()
         )
       }) %>%
@@ -370,7 +384,7 @@ person_server <- function(
           x_levels <- x_levels[x_levels != getOption("epishiny.ns.label", "(Missing)")]
           xaxis <- list(categories = x_levels, reversed = FALSE, title = list(text = age_group_lab))
           value_lab <- paste(
-            get_label(input$count_var, count_vars),
+            get_label_tr(input$count_var, count_vars),
             ifelse(var_select == "n", "", "(%)")
           )
           value_suffix <- ifelse(var_select == "n", "", "%")
@@ -412,7 +426,10 @@ person_server <- function(
         }
 
         if (sum(hc_dat$missing_age, hc_dat$missing_sex, na.rm = TRUE) > 0) {
-          txt <- glue::glue("Missing data: Age ({scales::number(hc_dat$missing_age)}), Sex ({scales::number(hc_dat$missing_sex)} missing/other)")
+          txt <- format_missing_demographics(
+            hc_dat$missing_age,
+            hc_dat$missing_sex
+          )
           highcharter::highchartProxy(ns("as_pyramid")) %>%
             highcharter::hcpxy_update(
               credits = list(enabled = TRUE, text = txt),
@@ -431,7 +448,7 @@ person_server <- function(
 
       output$as_tbl <- gt::render_gt({
         # show loading spinner
-        shiny::validate(shiny::need(nrow(df_mod()) > 0, "No data to display"))
+        shiny::validate(shiny::need(nrow(df_mod()) > 0, epishiny_tr("No data to display")))
         w_tbl$show()
         on.exit(w_tbl$hide())
 
@@ -548,7 +565,7 @@ hc_as_pyramid <- function(
     hc_out <- hc_out %>%
       highcharter::hc_credits(
         enabled = TRUE,
-        text = glue::glue("Missing data: Age ({scales::number(missing_age)}), Sex ({scales::number(missing_sex)} missing/other)")
+        text = format_missing_demographics(missing_age, missing_sex)
       )
   }
 
@@ -665,7 +682,9 @@ parse_age_breaks <- function(text) {
       nums
     },
     error = function(e) {
-      result$message <<- "Invalid format. Use numbers separated by commas."
+      result$message <<- epishiny_tr(
+        "Invalid format. Use numbers separated by commas."
+      )
       return(NULL)
     }
   )
@@ -679,19 +698,19 @@ parse_age_breaks <- function(text) {
 
   # Validation checks
   if (length(breaks) < 2) {
-    result$message <- "At least 2 breaks required"
+    result$message <- epishiny_tr("At least 2 breaks required")
     return(result)
   }
 
   # Check strictly increasing
   if (any(diff(breaks) <= 0)) {
-    result$message <- "Breaks must be strictly increasing"
+    result$message <- epishiny_tr("Breaks must be strictly increasing")
     return(result)
   }
 
   # Warn if doesn't start with 0
   if (breaks[1] != 0) {
-    result$message <- "Warning: Recommended to start with 0"
+    result$message <- epishiny_tr("Warning: Recommended to start with 0")
   }
 
   # Always add Inf at the end
@@ -728,8 +747,11 @@ person_options_ui <- function(
     },
     shinyWidgets::radioGroupButtons(
       ns("cnt_pcnt"),
-      label = "Display",
-      choices = c("Counts" = "n", "Percentages" = "n_prop"),
+      label = epishiny_tr("Display"),
+      choices = stats::setNames(
+        c("n", "n_prop"),
+        c(epishiny_tr("Counts"), epishiny_tr("Percentages"))
+      ),
       size = "sm",
       status = "outline-primary"
     ),

@@ -181,7 +181,27 @@ get_label <- function(selected, choices, .default = getOption("epishiny.count.la
   }
 }
 
-#' Format filter information text
+#' Look up a display label and translate it for the active language
+#' @noRd
+get_label_tr <- function(
+  selected,
+  choices,
+  .default = getOption("epishiny.count.label", "N")
+) {
+  epishiny_tr(get_label(selected, choices, .default))
+}
+
+#' Format missing age/sex data caption for person module charts
+#' @noRd
+format_missing_demographics <- function(missing_age, missing_sex) {
+  glue::glue(
+    "{epishiny_tr('Missing data')}: ",
+    epishiny_tr("Age"), " ({scales::number(missing_age)}), ",
+    epishiny_tr("Sex"), " ({scales::number(missing_sex)} ",
+    epishiny_tr("missing/other"), ")"
+  )
+}
+
 #'
 #' @description
 #' Combines filter information from time, place, and filter modules into formatted HTML
@@ -202,7 +222,14 @@ format_filter_info <- function(fi = NULL, tf = NULL, pf = NULL) {
         tf$lab
       )
     } else {
-      fi <- paste("<b>Filters applied</b></br>Period:", tf$lab)
+      fi <- paste(
+        "<b>",
+        epishiny_tr("Filters applied"),
+        "</b></br>",
+        epishiny_tr("Period:"),
+        tf$lab,
+        sep = ""
+      )
     }
   }
   if (length(pf)) {
@@ -210,7 +237,12 @@ format_filter_info <- function(fi = NULL, tf = NULL, pf = NULL) {
     if (length(fi)) {
       fi <- glue::glue("{fi}</br>{pf_lab}")
     } else {
-      fi <- paste0("<b>Filters applied</b></br>", pf_lab)
+      fi <- paste0(
+        "<b>",
+        epishiny_tr("Filters applied"),
+        "</b></br>",
+        pf_lab
+      )
     }
   }
   fi
@@ -246,7 +278,7 @@ my_hc_export <- function(
   width = 900,
   height = 450,
   dl_buttons = c("downloadPNG", "downloadJPEG", "downloadSVG", "separator", "downloadCSV", "downloadXLS"),
-  dl_text = "Download",
+  dl_text = epishiny_tr("Download"),
   filename = "EPI-FIG-"
 ) {
   set_hc_val <- function(first, second) {

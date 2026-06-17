@@ -3,6 +3,8 @@
     "epishiny",
     system.file("assets", package = "epishiny")
   )
+  # Initialise English translations by default
+  init_epishiny_i18n("en")
 }
 
 .onAttach <- function(libname, pkgname) {

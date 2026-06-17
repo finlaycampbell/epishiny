@@ -16,7 +16,7 @@ with each row representing an individual (patient, participant, etc) and
 each column representing a variable associated with said individual.
 }
 \details{
-\link[outbreaks:ebola_sim]{outbreaks::ebola_sim_clean} similated ebola outbreak in Freetown, Sierra Leone.
+\link[outbreaks:ebola_sim_clean]{outbreaks::ebola_sim_clean} similated ebola outbreak in Freetown, Sierra Leone.
 Ages and admin boundary pcodes were added by the epishiny author.
 }
 \examples{

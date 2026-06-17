@@ -12,6 +12,8 @@ epi_dashboard(
   theme = bslib::bs_theme(),
   col_widths = NULL,
   row_heights = 1,
+  language = "en",
+  include_language_selector = NULL,
   ...
 )
 }
@@ -40,6 +42,12 @@ to control layout. Example: \code{col_widths = c(12, 7, 5)} with \code{modules =
 puts time on full width row, then place (7 cols) and person (5 cols) on second row.}
 
 \item{row_heights}{Numeric vector specifying the row heights for the layout. Default is 1 (equal heights).}
+
+\item{language}{Two-letter language code for UI translations (e.g. \code{"en"}, \code{"fr"}).
+See \code{\link[=init_epishiny_i18n]{init_epishiny_i18n()}} and \code{\link[=set_epishiny_language]{set_epishiny_language()}}.}
+
+\item{include_language_selector}{Logical. Show a language selector in the dashboard header?
+Default \code{TRUE} when more than one language is available.}
 
 \item{...}{Named arguments to pass to the individual module UI and server functions.
 Arguments will be matched to their appropriate modules. See \code{\link[=time_ui]{time_ui()}}, \code{\link[=time_server]{time_server()}},

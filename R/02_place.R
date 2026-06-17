@@ -63,6 +63,22 @@ place_ui <- function(
   sidebar_width = 250
 ) {
   ns <- shiny::NS(id)
+  prime_epishiny_i18n()
+
+  # Translate UI labels (spans for live language switching)
+  title <- epishiny_tr_ui(title)
+  geo_lab <- epishiny_tr_ui(geo_lab)
+  count_vars_lab <- epishiny_tr_ui(count_vars_lab)
+  groups_lab <- epishiny_tr_ui(groups_lab)
+  no_grouping_lab <- epishiny_tr(no_grouping_lab)
+  circle_size_lab <- epishiny_tr_ui(circle_size_lab)
+  opts_btn_lab <- epishiny_tr_ui(opts_btn_lab)
+  download_lab <- epishiny_tr_ui(download_lab)
+  if (is.null(sidebar_title)) {
+    sidebar_title <- epishiny_tr_ui("Map options")
+  } else {
+    sidebar_title <- epishiny_tr_ui(sidebar_title)
+  }
 
   # check deps are installed
   pkg_deps <- c("sf", "leaflet", "leaflet.minicharts", "webshot2", "chromote")
@@ -84,6 +100,7 @@ place_ui <- function(
   } else {
     geo_levels <- purrr::map_chr(geo_data, "layer_name")
   }
+  geo_levels <- stats::setNames(geo_levels, epishiny_lookup(geo_levels))
 
   geo_level_selected <- geo_levels[1]
   if (
@@ -91,6 +108,17 @@ place_ui <- function(
     geo_level_default %in% geo_levels
   ) {
     geo_level_selected <- geo_level_default
+  }
+
+  if (length(tooltip) && is.character(tooltip)) {
+    tooltip <- epishiny_tr_ui(tooltip)
+  }
+
+  if (!is.null(count_vars) && rlang::is_named(count_vars)) {
+    count_vars <- epishiny_tr_names(count_vars)
+  }
+  if (!is.null(group_vars) && rlang::is_named(group_vars)) {
+    group_vars <- epishiny_tr_names(group_vars)
   }
 
   if (length(tooltip)) {
@@ -401,7 +429,13 @@ place_server <- function(
         shinyjs::toggleState(id = "choro_active", condition = has_polys)
         bslib::update_tooltip(
           "tt-choro",
-          if (has_polys) "Show/Hide layer" else "No polygon geometries available for choropleth layer"
+          if (has_polys) {
+            epishiny_tr("Show/Hide layer")
+          } else {
+            epishiny_tr(
+              "No polygon geometries available for choropleth layer"
+            )
+          }
         )
       }) |>
         bindEvent(rv$sf)
@@ -418,7 +452,10 @@ place_server <- function(
           updateSelectInput(
             session,
             "choro_var",
-            choices = c("Rates" = "attack_rate", "Counts" = "total"),
+            choices = stats::setNames(
+              c("attack_rate", "total"),
+              c(epishiny_tr("Rates"), epishiny_tr("Counts"))
+            ),
             selected = input$choro_var %||% "attack_rate"
           )
         } else {
@@ -426,7 +463,7 @@ place_server <- function(
           updateSelectInput(
             session,
             "choro_var",
-            choices = c("Counts" = "total"),
+            choices = stats::setNames("total", epishiny_tr("Counts")),
             selected = "total"
           )
         }
@@ -456,11 +493,11 @@ place_server <- function(
 
         map_var <- input$var %||% "n"
         var_list <- c("n", group_vars)
-        map_var_lab <- get_label(map_var, var_list)
+        map_var_lab <- get_label_tr(map_var, var_list)
 
         if (length(count_vars)) {
           count_var <- input$count_var %||% unname(count_vars)[1]
-          n_lab <- get_label(count_var, count_vars)
+          n_lab <- get_label_tr(count_var, count_vars)
           choro_indicator <- input$choro_indicator %||% unname(count_vars)[1]
         } else {
           count_var <- NULL
@@ -481,9 +518,9 @@ place_server <- function(
         }
 
         choro_lab <- if (choro_display == "attack_rate") {
-          paste(get_label(choro_indicator, count_vars), choro_lab_rate)
+          paste(get_label_tr(choro_indicator, count_vars), choro_lab_rate)
         } else {
-          get_label(choro_indicator, count_vars)
+          get_label_tr(choro_indicator, count_vars)
         }
 
         rv$map_var <- map_var
@@ -575,7 +612,7 @@ place_server <- function(
               options = leaflet::pathOptions(pane = "geo_highlight")
             )
         } else {
-          rv$region_select_name <- "All"
+          rv$region_select_name <- epishiny_tr("All")
         }
       })
 
@@ -632,7 +669,7 @@ place_server <- function(
         choro_indicator <- rv$choro_indicator
         if (is_agg && !is.null(choro_indicator)) {
           tt_n_col <- choro_indicator
-          tt_n_lab <- get_label(choro_indicator, count_vars)
+          tt_n_lab <- get_label_tr(choro_indicator, count_vars)
           tt_ar_col <- if (length(count_vars) > 1) {
             paste0("attack_rate_", choro_indicator)
           } else {
@@ -775,7 +812,10 @@ place_server <- function(
           return(NULL)
         } else {
           lab_missing <- glue::glue("{scales::number(n_missing)} ({scales::percent(pcnt_missing, accuracy = .1)})")
-          glue::glue("Missing/Unknown {rv$geo_level_name} data for {lab_missing} {tolower(rv$n_lab)}")
+          glue::glue(
+            "{epishiny_tr('Missing/Unknown')} {epishiny_tr(rv$geo_level_name)} ",
+            epishiny_tr('data for'), " {lab_missing} {tolower(rv$n_lab)}"
+          )
         }
       })
 
@@ -797,10 +837,14 @@ place_server <- function(
           if (is.null(chrome_browser)) {
             shiny::showModal(
               shiny::modalDialog(
-                title = "No Chrome or Chromium browser found",
+                title = epishiny_tr("No Chrome or Chromium browser found"),
                 paste(
-                  "The place module map export requires a Chrome or Chromium browser (Google Chrome, Chromium, Microsoft Edge and others)",
-                  "to be installed on the system running the shiny app in order to work."
+                  epishiny_tr(
+                    "The place module map export requires a Chrome or Chromium browser (Google Chrome, Chromium, Microsoft Edge and others)"
+                  ),
+                  epishiny_tr(
+                    "to be installed on the system running the shiny app in order to work."
+                  )
                 )
               )
             )
@@ -810,7 +854,9 @@ place_server <- function(
           # show loading spinner and notif and remove when done
           w_map$show()
           ntf <- showNotification(
-            "Generating map export. This can take a while...",
+            epishiny_tr(
+              "Generating map export. This can take a while..."
+            ),
             type = "default",
             duration = NULL
           )
@@ -867,7 +913,7 @@ place_server <- function(
           choro_indicator <- rv$choro_indicator
           if (is_agg && !is.null(choro_indicator)) {
             exp_n_col <- choro_indicator
-            exp_n_lab <- get_label(choro_indicator, count_vars)
+            exp_n_lab <- get_label_tr(choro_indicator, count_vars)
             exp_ar_col <- if (length(count_vars) > 1) {
               paste0("attack_rate_", choro_indicator)
             } else {
@@ -994,18 +1040,18 @@ place_options_ui <- function(
     multiple = FALSE,
     bslib::accordion_panel(
       value = "choropleth",
-      title = "Choropleth Layer",
+      title = epishiny_tr_ui("Choropleth Layer"),
       bslib::input_switch(
         id = ns("choro_active"),
-        label = "Show choropleth layer",
+        label = epishiny_tr_ui("Show choropleth layer"),
         value = TRUE
       ) |>
-        bslib::tooltip(id = ns("tt-choro"), "Show/Hide layer"),
+        bslib::tooltip(id = ns("tt-choro"), epishiny_tr_ui("Show/Hide layer")),
       # Indicator input - only shown if count_vars provided (aggregate data)
       if (length(count_vars) > 0) {
         selectInput(
           ns("choro_indicator"),
-          label = "Indicator",
+          label = epishiny_tr_ui("Indicator"),
           choices = count_vars,
           selected = unname(count_vars)[1],
           multiple = FALSE,
@@ -1014,15 +1060,18 @@ place_options_ui <- function(
       },
       selectInput(
         ns("choro_var"),
-        label = "Display",
-        choices = c("Rates" = "attack_rate", "Counts" = "total"),
+        label = epishiny_tr_ui("Display"),
+        choices = stats::setNames(
+          c("attack_rate", "total"),
+          c(epishiny_tr("Rates"), epishiny_tr("Counts"))
+        ),
         selected = "attack_rate",
         multiple = FALSE,
         selectize = FALSE
       ),
       selectInput(
         ns("choro_pal"),
-        label = "Palette",
+        label = epishiny_tr_ui("Palette"),
         choices = choro_pals(),
         selected = pal_default,
         multiple = FALSE,
@@ -1030,22 +1079,22 @@ place_options_ui <- function(
       ),
       bslib::input_switch(
         id = ns("choro_pal_rev"),
-        label = "Reverse palette",
+        label = epishiny_tr_ui("Reverse palette"),
         value = FALSE
       ),
       tags$div(
         class = "d-flex justify-content-start align-items-start",
         selectInput(
           ns("choro_breaks"),
-          label = "Breaks Method",
-          choices = choro_breaks(),
+          label = epishiny_tr_ui("Breaks Method"),
+          choices = epishiny_tr_names(choro_breaks()),
           selected = choro_breaks_default,
           multiple = FALSE,
           selectize = FALSE
         ),
         numericInput(
           inputId = ns("choro_nbreaks"),
-          label = "N Breaks",
+          label = epishiny_tr_ui("N Breaks"),
           value = 5,
           min = 2,
           max = 10,
@@ -1056,10 +1105,10 @@ place_options_ui <- function(
     ),
     bslib::accordion_panel(
       value = "symbols",
-      title = "Symbols Layer",
+      title = epishiny_tr_ui("Symbols Layer"),
       bslib::input_switch(
         id = ns("symbols_active"),
-        label = "Show symbols layer",
+        label = epishiny_tr_ui("Show symbols layer"),
         value = symbols_active_default
       ),
       selectInput(
@@ -1916,6 +1965,10 @@ make_leaf_tooltip <- function(
   ar_lab = "Rate",
   metric_vars = NULL
 ) {
+  n_lab <- epishiny_tr(n_lab)
+  pop_lab <- epishiny_tr(pop_lab)
+  ar_lab <- epishiny_tr(ar_lab)
+
   format_metric <- function(x) {
     if (is.numeric(x)) {
       x <- dplyr::coalesce(x, 0)
@@ -1943,6 +1996,7 @@ make_leaf_tooltip <- function(
         if (!nzchar(lab)) {
           lab <- col
         }
+        lab <- epishiny_tr(lab)
         if (!col %in% names(df)) {
           return("")
         }
@@ -1962,8 +2016,8 @@ make_leaf_tooltip <- function(
   }
 
   if (all(!is.null(pop_col), !is.null(ar_col))) {
-    pop <- ifelse(is.na(df[[pop_col]]), "No data", scales::number(df[[pop_col]], accuracy = 1))
-    ar <- ifelse(is.na(df[[ar_col]]), "No data", scales::number(df[[ar_col]], accuracy = .1))
+    pop <- ifelse(is.na(df[[pop_col]]), epishiny_tr("No data"), scales::number(df[[pop_col]], accuracy = 1))
+    ar <- ifelse(is.na(df[[ar_col]]), epishiny_tr("No data"), scales::number(df[[ar_col]], accuracy = .1))
     glue::glue(
       "<b>{df[[name_col]]}</b><br>",
       "{extra_per_row}",

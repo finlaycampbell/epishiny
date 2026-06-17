@@ -78,7 +78,7 @@ If NULL, no default is set and "No grouping" option will be selected by default.
 \item{date_int_lab}{text label for the date interval input.}
 
 \item{date_intervals}{Character vector with choices for date aggregation intervals passed to the \code{unit}
-argument of \link[lubridate:round_date]{lubridate::floor_date}. If named, names are used as labels. Default is c('day', 'week', 'year').}
+argument of \link[lubridate:floor_date]{lubridate::floor_date}. If named, names are used as labels. Default is c('day', 'week', 'year').}
 
 \item{date_interval_default}{Character string of default date interval to use. Must be one of the values provided in \code{date_intervals}.
 Defaults to "week" if available, otherwise the first value in \code{date_intervals}.}

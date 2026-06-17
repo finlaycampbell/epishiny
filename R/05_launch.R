@@ -68,6 +68,10 @@ launch_module <- function(module = c("time", "place", "person"), ...) {
 #'   to control layout. Example: `col_widths = c(12, 7, 5)` with `modules = c("time", "place", "person")`
 #'   puts time on full width row, then place (7 cols) and person (5 cols) on second row.
 #' @param row_heights Numeric vector specifying the row heights for the layout. Default is 1 (equal heights).
+#' @param language Two-letter language code for UI translations (e.g. `"en"`, `"fr"`).
+#'   See [init_epishiny_i18n()] and [set_epishiny_language()].
+#' @param include_language_selector Logical. Show a language selector in the dashboard header?
+#'   Default `TRUE` when more than one language is available.
 #' @param ... Named arguments to pass to the individual module UI and server functions.
 #'   Arguments will be matched to their appropriate modules. See [time_ui()], [time_server()],
 #'   [place_ui()], [place_server()], [person_ui()], [person_server()], [filter_ui()], [filter_server()]
@@ -144,8 +148,18 @@ epi_dashboard <- function(
   theme = bslib::bs_theme(),
   col_widths = NULL,
   row_heights = 1,
+  language = "en",
+  include_language_selector = NULL,
   ...
 ) {
+  # Initialise translations
+  init_epishiny_i18n(language)
+  prime_epishiny_i18n()
+  title <- epishiny_tr_ui(title)
+
+  if (is.null(include_language_selector)) {
+    include_language_selector <- length(get_epishiny_i18n()$get_languages()) > 1
+  }
   # Validate modules parameter
   valid_modules <- c("time", "place", "person")
   if (!all(modules %in% valid_modules)) {
@@ -246,9 +260,14 @@ epi_dashboard <- function(
       class = "bslib-page-dashboard",
       title = title,
       theme = theme,
-      sidebar = do.call(
-        filter_ui,
-        c(list(id = "filter"), args[filter_ui_args])
+      sidebar = tagList(
+        if (isTRUE(include_language_selector)) {
+          language_selector_ui(position = "inline")
+        },
+        do.call(
+          filter_ui,
+          c(list(id = "filter"), args[filter_ui_args])
+        )
       ),
       do.call(
         bslib::layout_columns,
@@ -277,6 +296,12 @@ epi_dashboard <- function(
       class = "bslib-page-dashboard",
       title = title,
       theme = theme,
+      if (isTRUE(include_language_selector)) {
+        tags$div(
+          class = "d-flex justify-content-end",
+          language_selector_ui(position = "inline")
+        )
+      },
       tags$div(tags$h4(title, class = "fw-bold")),
       do.call(
         bslib::layout_columns,
@@ -300,8 +325,17 @@ epi_dashboard <- function(
     )
   }
 
+  ui <- shiny::tagList(
+    use_epishiny_i18n(),
+    ui
+  )
+
   # Build server
   server <- function(input, output, session) {
+    if (isTRUE(include_language_selector)) {
+      language_selector_server()
+    }
+
     # Initialize reactiveVals for cross-module filtering
     time_filter <- shiny::reactiveVal()
     place_filter <- shiny::reactiveVal()

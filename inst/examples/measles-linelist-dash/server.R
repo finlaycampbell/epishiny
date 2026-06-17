@@ -1,4 +1,6 @@
 server <- function(input, output, session) {
+  language_selector_server()
+
   app_data <- filter_server(
     id = "filter",
     df = df_ll,

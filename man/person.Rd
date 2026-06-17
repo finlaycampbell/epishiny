@@ -105,7 +105,7 @@ the data by click events on the place module map (clicking a polygon
 will filter the data to the clicked region)}
 }
 \value{
-A \link[bslib:navset]{bslib::navset_card_tab} UI element with chart and table tabs.
+A \link[bslib:navset_card_tab]{bslib::navset_card_tab} UI element with chart and table tabs.
 }
 \description{
 Visualise age and sex demographics in a population pyramid chart and summary table.
