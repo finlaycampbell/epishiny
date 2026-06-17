@@ -1,0 +1,347 @@
+# Place module
+
+Visualise geographical distribution across multiple administrative
+boundaries on an interactive leaflet map.
+
+## Usage
+
+``` r
+place_ui(
+  id,
+  geo_data,
+  count_vars = NULL,
+  group_vars = NULL,
+  title = "Place",
+  icon = bsicons::bs_icon("geo-fill"),
+  tooltip = NULL,
+  geo_lab = "Geo boundaries",
+  count_vars_lab = "Indicator",
+  groups_lab = "Group data by",
+  no_grouping_lab = "No grouping",
+  circle_size_lab = "Circle size multiplyer",
+  opts_btn_lab = "Map options",
+  download_lab = "Download image of current map",
+  choro_pal_default = "Reds",
+  choro_breaks_default = "quantile",
+  geo_level_default = NULL,
+  group_var_default = NULL,
+  circle_size_default = 6,
+  symbols_active_default = TRUE,
+  full_screen = TRUE,
+  use_sidebar = TRUE,
+  sidebar_title = NULL,
+  sidebar_width = 250
+)
+
+place_server(
+  id,
+  df,
+  geo_data,
+  count_vars = NULL,
+  group_vars = NULL,
+  show_parent_borders = FALSE,
+  choro_lab_rate = "Rate /100 000",
+  choro_opacity = 0.7,
+  export_width = 1200,
+  export_height = 650,
+  time_filter = shiny::reactiveVal(),
+  filter_info = shiny::reactiveVal(),
+  filter_reset = shiny::reactiveVal(),
+  tooltip_vars = NULL,
+  pie_palette = NULL,
+  geo_level_default = NULL
+)
+```
+
+## Arguments
+
+- id:
+
+  Module id. Must be the same in both the UI and server function to link
+  the two.
+
+- geo_data:
+
+  An epishiny geo layer object or a list of epishiny geo layer objects
+  created with
+  [`geo_layer()`](https://epicentre-msf.github.io/epishiny/reference/geo_layer.md).
+  Each layer will be available as a selectable option in the map options
+  to visualise data across different administrative levels. See
+  [`?geo_layer`](https://epicentre-msf.github.io/epishiny/reference/geo_layer.md)
+  for details on how to set up your geo data.
+
+- count_vars:
+
+  If data is aggregated, variable name(s) of count variable(s) in data.
+  If more than one is variable provided, a select input will appear in
+  the options dropdown. If named, names are used as variable labels.
+
+- group_vars:
+
+  Character vector of categorical variable names. If provided, a select
+  input will appear in the options dropdown allowing for data groups to
+  be visualised on the map in pie charts per geographical unit. If
+  named, names are used as variable labels.
+
+- title:
+
+  The title for the card.
+
+- icon:
+
+  The icon to be displayed next to the title
+
+- tooltip:
+
+  additional title hover text information
+
+- geo_lab:
+
+  The label for the geographical level selection.
+
+- count_vars_lab:
+
+  text label for the aggregate count variables input.
+
+- groups_lab:
+
+  The label for the group data by selection.
+
+- no_grouping_lab:
+
+  text label for the no grouping option in the grouping input.
+
+- circle_size_lab:
+
+  text label for the circle size slider input.
+
+- opts_btn_lab:
+
+  text label for the dropdown menu button.
+
+- download_lab:
+
+  text label for the download button.
+
+- choro_pal_default:
+
+  RColorBrewer or viridis palette name to be used as the default option
+  of the choropleth layer palette input.
+
+- geo_level_default:
+
+  Initial geo boundary level (`layer_name`).
+
+- group_var_default:
+
+  Initial pie grouping variable (column name from `group_vars`).
+
+- circle_size_default:
+
+  Initial value for the circle size slider.
+
+- symbols_active_default:
+
+  Initial value for the symbols layer switch.
+
+- full_screen:
+
+  Add button to card to with the option to enter full screen mode?
+
+- use_sidebar:
+
+  Logical. If TRUE, displays options in a sidebar instead of popover
+  button. Default TRUE.
+
+- sidebar_title:
+
+  String. Title for the sidebar. Only used if use_sidebar = TRUE.
+  Default "Map options".
+
+- sidebar_width:
+
+  Numeric. Width of sidebar in pixels. Only used if use_sidebar = TRUE.
+  Default 280.
+
+- df:
+
+  Data frame or tibble of patient level or aggregated data. Can be
+  either a shiny reactive or static dataset.
+
+- show_parent_borders:
+
+  Show borders of parent boundary levels?
+
+- choro_lab_rate:
+
+  Label for attack rate choropleth (only used if `geo_data` contains
+  population data).
+
+- choro_opacity:
+
+  Opacity of choropleth colour.
+
+- export_width:
+
+  The width of the exported map image.
+
+- export_height:
+
+  The height of the exported map image.
+
+- time_filter:
+
+  supply the output of
+  [`time_server()`](https://epicentre-msf.github.io/epishiny/reference/time.md)
+  here to filter the data by click events on the time module bar chart
+  (clicking a bar will filter the data to the period the bar represents)
+
+- filter_info:
+
+  If contained within an app using
+  [`filter_server()`](https://epicentre-msf.github.io/epishiny/reference/filter.md),
+  supply the `filter_info` object returned by that function here to add
+  filter information to chart exports.
+
+- filter_reset:
+
+  If contained within an app using
+  [`filter_server()`](https://epicentre-msf.github.io/epishiny/reference/filter.md),
+  supply the `filter_reset` object returned by that function here to
+  reset any click event filters that have been set from by module.
+
+- tooltip_vars:
+
+  Named character vector of numeric columns to show in polygon tooltips.
+
+- pie_palette:
+
+  Optional named list of named colour vectors keyed by grouping variable
+  name.
+
+## Value
+
+A [bslib::card](https://rstudio.github.io/bslib/reference/card.html) UI
+element with options (in popover or sidebar) and a leaflet map.
+
+The server function returns the leaflet map's shape click information as
+a list.
+
+## Examples
+
+``` r
+library(shiny)
+library(bslib)
+library(epishiny)
+
+# example package data
+data("df_ll_ebola") # linelist
+data("sf_sle") # sf geo boundaries for Sierra Leone admin 3 & 4
+
+# setup geo data for admin 3 and admin 4 using the
+# geo_layer function to be passed to the place module
+# if population variable is provided, attack rates
+# will be shown on the map as a choropleth
+geo_data <- list(
+  geo_layer(
+    layer_name = "Admin 3", # name of the boundary level
+    sf = sf_sle$adm3, # sf object with boundary polygons
+    name_var = "adm3_name", # column with place names
+    pop_var = "adm3_pop", # column with population data (optional)
+    join_by = c("pcode" = "adm3_pcode") # geo to data join vars: LHS = sf, RHS = data
+  ),
+  geo_layer(
+    layer_name = "Admin 4",
+    sf = sf_sle$adm4,
+    name_var = "adm4_name",
+    join_by = c("pcode" = "adm4_pcode")
+  )
+)
+
+# define date variables in data as named list to be used in app
+date_vars <- c(
+  "Date of onset" = "date_of_onset",
+  "Date of hospitalisation" = "date_of_hospitalisation",
+  "Date of infection" = "date_of_infection",
+  "Date of outcome" = "date_of_outcome"
+)
+
+# define categorical grouping variables
+# in data as named list to be used in app
+group_vars <- c(
+  "Hospital" = "hospital",
+  "Gender" = "gender",
+  "Outcome" = "outcome"
+)
+
+# user interface
+ui <- page_sidebar(
+  title = "epishiny",
+  # sidebar
+  sidebar = filter_ui(
+    "filter",
+    date_vars = date_vars,
+    group_vars = group_vars
+  ),
+  # main content
+  layout_columns(
+    col_widths = c(12, 7, 5),
+    place_ui(
+      id = "map",
+      geo_data = geo_data,
+      group_vars = group_vars
+    ),
+    time_ui(
+      id = "curve",
+      title = "Time",
+      date_vars = date_vars,
+      group_vars = group_vars,
+      ratio_line_lab = "Show CFR line?"
+    ),
+    person_ui(id = "age_sex")
+  )
+)
+
+# app server
+server <- function(input, output, session) {
+  app_data <- filter_server(
+    id = "filter",
+    df = df_ll_ebola,
+    date_vars = date_vars,
+    group_vars = group_vars
+  )
+  place_server(
+    id = "map",
+    df = app_data$df,
+    geo_data = geo_data,
+    group_vars = group_vars,
+    filter_info = app_data$filter_info
+  )
+  time_server(
+    id = "curve",
+    df = app_data$df,
+    date_vars = date_vars,
+    group_vars = group_vars,
+    show_ratio = TRUE,
+    ratio_var = "outcome",
+    ratio_lab = "CFR",
+    ratio_numer = "Death",
+    ratio_denom = c("Death", "Recover"),
+    filter_info = app_data$filter_info
+  )
+  person_server(
+    id = "age_sex",
+    df = app_data$df,
+    age_var = "age",
+    sex_var = "gender",
+    male_level = "m",
+    female_level = "f",
+    filter_info = app_data$filter_info
+  )
+}
+
+# launch app
+if (interactive()) {
+  shinyApp(ui, server)
+}
+```

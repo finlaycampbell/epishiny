@@ -1,0 +1,116 @@
+# Launch a single 'epishiny' module as a standalone shiny app
+
+Use this function to quickly launch any of the 3 'epishiny' interactive
+visualisation modules (time, place, person) independently, allowing for
+incorporation into exploratory data analysis workflows in R.
+
+## Usage
+
+``` r
+launch_module(module = c("time", "place", "person"), ...)
+```
+
+## Arguments
+
+- module:
+
+  Name of the module to launch. Current options are "time", "place" or
+  "person".
+
+- ...:
+
+  Other named arguments passed to the relevant module UI and Server
+  functions. See each module's documentation for details of the
+  arguments required.
+
+## Value
+
+No return value, a shiny app is launched.
+
+## Examples
+
+``` r
+library(shiny)
+library(epishiny)
+
+# example package data
+data("df_ll")
+data("sf_yem")
+
+# setup geo data for adm1 and adm2 using the
+# geo_layer function to be passed to the place module
+# if population variable is provided, attack rates
+# will be shown on the map as a choropleth
+geo_data <- list(
+  geo_layer(
+    layer_name = "Governorate", # name of the boundary level
+    sf = sf_yem$adm1, # sf object with boundary polygons
+    name_var = "adm1_name", # column with place names
+    pop_var = "adm1_pop", # column with population data (optional)
+    join_by = c("pcode" = "adm1_pcode") # geo to data join vars: LHS = sf, RHS = data
+  ),
+  geo_layer(
+    layer_name = "District",
+    sf = sf_yem$adm2,
+    name_var = "adm2_name",
+    pop_var = "adm2_pop",
+    join_by = c("pcode" = "adm2_pcode")
+  )
+)
+
+# define date variables in data as named list to be used in app
+date_vars <- c(
+  "Date of notification" = "date_notification",
+  "Date of onset" = "date_symptom_start",
+  "Date of hospitalisation" = "date_hospitalisation_start",
+  "Date of outcome" = "date_hospitalisation_end"
+)
+
+# define categorical grouping variables
+# in data as named list to be used in app
+group_vars <- c(
+  "Governorate" = "adm1_origin",
+  "Sex" = "sex_id",
+  "Hospitalised" = "hospitalised_yn",
+  "Vaccinated measles" = "vacci_measles_yn",
+  "Outcome" = "outcome"
+)
+
+# launch time epicurve module
+if (interactive()) {
+  launch_module(
+    module = "time",
+    df = df_ll,
+    date_vars = date_vars,
+    group_vars = group_vars,
+    show_ratio = TRUE,
+    ratio_line_lab = "Show CFR line?",
+    ratio_var = "outcome",
+    ratio_lab = "CFR",
+    ratio_numer = "Deceased",
+    ratio_denom = c("Deceased", "Healed", "Abandonment")
+  )
+}
+
+# launch place map module
+if (interactive()) {
+  launch_module(
+    module = "place",
+    df = df_ll,
+    geo_data = geo_data,
+    group_vars = group_vars
+  )
+}
+
+# launch person age/sex pyramid module
+if (interactive()) {
+  launch_module(
+    module = "person",
+    df = df_ll,
+    age_var = "age_years",
+    sex_var = "sex_id",
+    male_level = "Male",
+    female_level = "Female"
+  )
+}
+```

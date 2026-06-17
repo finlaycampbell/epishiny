@@ -1,0 +1,145 @@
+# epishiny
+
+**Please note this package is in alpha stage of development and not yet
+suitable for use in production as the API is likely to change.**
+
+## Motivation
+
+Interactive web-based data visualisations and dashboards are an
+increasingly common method of monitoring infectious disease outbreaks.
+Whilst R is now a commonly used tool for analysis and data visualisation
+in epidemiology, epidemiologists will often lack the knowledge required
+to be able to produce interactive dashboards directly from within their
+R workflows, resulting in external propriatory software being used
+instead.
+
+`epishiny` aims to bridge this gap by providing simple functions that
+produce engaging, feature-rich interactive visualisations and dashboards
+from epidemiological data using R’s [`shiny`](https://shiny.posit.co/)
+web-framework.
+
+## Installation
+
+You can install the development version of epishiny from GitHub with
+either the [pak](https://pak.r-lib.org/) or
+[remotes](https://remotes.r-lib.org/) package:
+
+``` r
+
+# install.packages("pak")
+pak::pkg_install("epicentre-msf/epishiny", dependencies = TRUE)
+
+# install.packages("remotes")
+remotes::install_github("epicentre-msf/epishiny", dependencies = TRUE)
+```
+
+## Demo Dashboard
+
+Launch a demo dashboard to see what `epishiny` can do:
+
+``` r
+
+library(epishiny)
+launch_demo_dashboard("ebola")
+```
+
+![](reference/figures/dashboard.png)
+
+The code for the example dashboards can be found in
+[inst/examples/](https://github.com/epicentre-msf/epishiny/tree/main/inst/examples/)
+of the package repository.
+
+## Learn More
+
+See the articles below on the package website to get started using
+`epishiny` with your data:
+
+- [Getting
+  started](https://epicentre-msf.github.io/epishiny/articles/epishiny.html) -
+  Build fully-featured dashboards in just a few lines of code with
+  [`epi_dashboard()`](https://epicentre-msf.github.io/epishiny/reference/epi_dashboard.md)
+  and explore individual modules
+- Use cases:
+  - [Linelist
+    data](https://epicentre-msf.github.io/epishiny/articles/linelist_data.html)
+  - [Aggregated
+    data](https://epicentre-msf.github.io/epishiny/articles/aggregated_data.html)
+
+## Contributions
+
+Contributions are welcome. See the [contributing
+article](https://epicentre-msf.github.io/epishiny/articles/contributing.html)
+on the package website for details on how to contribute to `epishiny`.
+
+# Package index
+
+## All functions
+
+- [`df_ll`](https://epicentre-msf.github.io/epishiny/reference/df_ll.md)
+  : Example Measles Linelist Data
+- [`df_ll_ebola`](https://epicentre-msf.github.io/epishiny/reference/df_ll_ebola.md)
+  : Example Ebola Linelist Data
+- [`df_ll_measles`](https://epicentre-msf.github.io/epishiny/reference/df_ll_measles.md)
+  : Example Measles Linelist Data for Chad
+- [`epi_dashboard()`](https://epicentre-msf.github.io/epishiny/reference/epi_dashboard.md)
+  : Create a custom epishiny dashboard
+- [`epishiny_tr()`](https://epicentre-msf.github.io/epishiny/reference/epishiny_tr.md)
+  : Translate text using the active epishiny language
+- [`epishiny_tr_names()`](https://epicentre-msf.github.io/epishiny/reference/epishiny_tr_names.md)
+  : Translate the names of a named vector
+- [`epishiny_tr_ui()`](https://epicentre-msf.github.io/epishiny/reference/epishiny_tr_ui.md)
+  : Translate text for live UI updating with shiny.i18n
+- [`filter_ui()`](https://epicentre-msf.github.io/epishiny/reference/filter.md)
+  [`filter_server()`](https://epicentre-msf.github.io/epishiny/reference/filter.md)
+  : Filter module
+- [`geo_layer()`](https://epicentre-msf.github.io/epishiny/reference/geo_layer.md)
+  : Build a geo layer to be used in the 'place' module
+- [`get_epishiny_i18n()`](https://epicentre-msf.github.io/epishiny/reference/get_epishiny_i18n.md)
+  : Get the epishiny Translator object
+- [`init_epishiny_i18n()`](https://epicentre-msf.github.io/epishiny/reference/init_epishiny_i18n.md)
+  : Initialise or reset the epishiny Translator
+- [`language_selector_server()`](https://epicentre-msf.github.io/epishiny/reference/language_selector_server.md)
+  : Language selector server
+- [`language_selector_ui()`](https://epicentre-msf.github.io/epishiny/reference/language_selector_ui.md)
+  : Language selector UI
+- [`launch_demo_dashboard()`](https://epicentre-msf.github.io/epishiny/reference/launch_demo_dashboard.md)
+  : Launch epishiny demo dashboard
+- [`launch_module()`](https://epicentre-msf.github.io/epishiny/reference/launch_module.md)
+  : Launch a single 'epishiny' module as a standalone shiny app
+- [`person_ui()`](https://epicentre-msf.github.io/epishiny/reference/person.md)
+  [`person_server()`](https://epicentre-msf.github.io/epishiny/reference/person.md)
+  : Person module
+- [`place_ui()`](https://epicentre-msf.github.io/epishiny/reference/place.md)
+  [`place_server()`](https://epicentre-msf.github.io/epishiny/reference/place.md)
+  : Place module
+- [`prime_epishiny_i18n()`](https://epicentre-msf.github.io/epishiny/reference/prime_epishiny_i18n.md)
+  : Prime the translator for span-wrapped UI strings
+- [`set_epishiny_language()`](https://epicentre-msf.github.io/epishiny/reference/set_epishiny_language.md)
+  : Set the active translation language
+- [`sf_sle`](https://epicentre-msf.github.io/epishiny/reference/sf_sle.md)
+  : Sierra Leone Western Area Administrative Boundaries
+- [`sf_tcd`](https://epicentre-msf.github.io/epishiny/reference/sf_tcd.md)
+  : Chad Mandoul Region Administrative Boundaries
+- [`sf_yem`](https://epicentre-msf.github.io/epishiny/reference/sf_yem.md)
+  : Yemen Governorate (adm1) and District (adm2) Administrative
+  Boundaries
+- [`time_ui()`](https://epicentre-msf.github.io/epishiny/reference/time.md)
+  [`time_server()`](https://epicentre-msf.github.io/epishiny/reference/time.md)
+  : Time module
+- [`update_epishiny_select()`](https://epicentre-msf.github.io/epishiny/reference/update_epishiny_select.md)
+  : Update a selectInput after a language change
+- [`update_epishiny_virtual_select_label()`](https://epicentre-msf.github.io/epishiny/reference/update_epishiny_virtual_select_label.md)
+  : Update a virtualSelectInput label after a language change
+- [`use_epishiny_i18n()`](https://epicentre-msf.github.io/epishiny/reference/use_epishiny_i18n.md)
+  : Include shiny.i18n assets in the app UI
+
+# Articles
+
+### All vignettes
+
+- [Using epishiny with aggregated
+  data](https://epicentre-msf.github.io/epishiny/articles/aggregated_data.md):
+- [Contributing](https://epicentre-msf.github.io/epishiny/articles/contributing.md):
+- [epishiny](https://epicentre-msf.github.io/epishiny/articles/epishiny.md):
+- [Using epishiny with linelist
+  data](https://epicentre-msf.github.io/epishiny/articles/linelist_data.md):
