@@ -1069,10 +1069,10 @@ place_options_ui <- function(
     multiple = FALSE,
     bslib::accordion_panel(
       value = "choropleth",
-      title = epishiny_tr_ui("Choropleth Layer"),
+      title = epishiny_tr_ui("Fill options"),
       bslib::input_switch(
         id = ns("choro_active"),
-        label = epishiny_tr_ui("Show choropleth layer"),
+        label = epishiny_tr_ui("Show fill"),
         value = TRUE
       ) |>
         bslib::tooltip(id = ns("tt-choro"), epishiny_tr_ui("Show/Hide layer")),
@@ -1134,10 +1134,10 @@ place_options_ui <- function(
     ),
     bslib::accordion_panel(
       value = "symbols",
-      title = epishiny_tr_ui("Symbols Layer"),
+      title = epishiny_tr_ui("Pie chart options"),
       bslib::input_switch(
         id = ns("symbols_active"),
-        label = epishiny_tr_ui("Show symbols layer"),
+        label = epishiny_tr_ui("Show pies"),
         value = symbols_active_default
       ),
       selectInput(
