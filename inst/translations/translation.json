@@ -43,7 +43,7 @@
     {"en": "Breaks Method", "fr": "Classes"},
     {"en": "N Breaks", "fr": "N classes"},
     {"en": "Symbols Layer", "fr": "Couche de symboles"},
-    {"en": "Pie chart options", "fr": "Camemberts"},
+    {"en": "Pie chart options", "fr": "Cercles"},
     {"en": "Show symbols layer", "fr": "Afficher la couche de symboles"},
     {"en": "Show pies", "fr": "Afficher"},
     {"en": "Rate /100 000", "fr": "Taux /100 000"},
@@ -143,6 +143,6 @@
     {"en": "Total", "fr": "Total"},
     {"en": "Status", "fr": "Statut vital"},
     {"en": "Died", "fr": "Décédé"},
-    {"en": "Not died", "fr": "Non décédé"}
+    {"en": "Alive", "fr": "Vivant"}
   ]
 }
