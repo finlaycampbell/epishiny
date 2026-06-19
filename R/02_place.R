@@ -795,35 +795,58 @@ place_server <- function(
       })
 
       # Missing data information ==================================================
-      missing_text <- reactive({
+      map_counts <- reactive({
         df_missing <- df_mod() %>%
           dplyr::anti_join(geo_select()$sf, by = purrr::set_names(rv$join_cols, rv$geo_col))
 
         if (length(count_vars)) {
           n_missing <- df_missing %>% dplyr::pull(.data[[rv$count_var]]) %>% sum(na.rm = TRUE)
           n_total <- df_mod() %>% dplyr::pull(.data[[rv$count_var]]) %>% sum(na.rm = TRUE)
-          pcnt_missing <- n_missing / n_total
         } else {
           n_missing <- nrow(df_missing)
-          pcnt_missing <- n_missing / nrow(df_mod())
+          n_total <- nrow(df_mod())
         }
+        n_used <- n_total - n_missing
+        pcnt_missing <- if (n_total > 0) n_missing / n_total else 0
 
-        if (n_missing == 0) {
+        list(n_missing = n_missing, n_total = n_total, n_used = n_used, pcnt_missing = pcnt_missing)
+      })
+
+      missing_text <- reactive({
+        counts <- map_counts()
+
+        if (counts$n_missing == 0) {
           return(NULL)
         } else {
-          lab_missing <- glue::glue("{scales::number(n_missing)} ({scales::percent(pcnt_missing, accuracy = .1)})")
-          glue::glue(
-            "{epishiny_tr('Missing/Unknown')} {epishiny_tr(rv$geo_level_name)} ",
-            epishiny_tr('data for'), " {lab_missing} {tolower(rv$n_lab)}"
+          lab_missing <- glue::glue(
+            "{scales::number(counts$n_missing)} ",
+            "({scales::percent(counts$pcnt_missing, accuracy = .1)})"
           )
+          template <- epishiny_tr("Missing/Unknown {geo_level} data for {n_missing} {n_lab}")
+          geo_level <- epishiny_tr(rv$geo_level_name)
+          n_missing <- lab_missing
+          n_lab <- tolower(epishiny_tr(rv$n_lab))
+          glue::glue(template)
         }
       })
 
+      plot_n_text <- reactive({
+        format_plot_n(map_counts()$n_used, rv$n_lab)
+      })
+
       output$footer <- renderUI({
-        req(missing_text())
+        missing_data_text <- missing_text()
+        footer_text <- c(
+          if (!is.null(missing_data_text)) {
+            glue::glue(
+              "<i class=\"fa fa-exclamation-triangle\" style=\"color:red;\"></i> ",
+              "{missing_data_text}"
+            )
+          },
+          plot_n_text()
+        )
         tags$span(tags$small(
-          HTML('<i class="fa fa-exclamation-triangle" style="color:red;"></i>'),
-          missing_text()
+          shiny::HTML(glue::glue_collapse(footer_text, sep = " | "))
         ))
       })
 
@@ -868,8 +891,11 @@ place_server <- function(
           # rebuild current map shown on dashboard
           missing_data_text <- missing_text()
           if (!is.null(missing_data_text)) {
-            missing_data_text <- glue::glue("<b>Missing data</b></br>{missing_data_text}")
+            missing_data_text <- glue::glue(
+              "<b>{epishiny_tr('Missing data')}</b>: {missing_data_text}"
+            )
           }
+          plot_n_export_text <- plot_n_text()
 
           # get the centroid coordinates of current onscreen map view
           # to set the view in export map
@@ -902,7 +928,10 @@ place_server <- function(
             ) %>%
             leaflet::addControl(
               html = shiny::HTML(
-                glue::glue_collapse(c(missing_data_text, filter_info_out()), sep = "</br>")
+                glue::glue_collapse(
+                  c(missing_data_text, plot_n_export_text, filter_info_out()),
+                  sep = " | "
+                )
               ),
               className = "leaflet-control-attribution",
               position = "bottomleft"

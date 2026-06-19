@@ -356,7 +356,7 @@ person_server <- function(
           missing_age = hc_dat$missing_age,
           missing_sex = hc_dat$missing_sex,
           colours = colours,
-          ylab = age_group_lab,
+          ylab = epishiny_tr(age_group_lab),
           value_name = get_label_tr(input$count_var, count_vars),
           filter_info = filter_info_out()
         )
@@ -381,8 +381,12 @@ person_server <- function(
           var_select <- input$cnt_pcnt
           max_value <- max(abs(df_age_sex[[var_select]]))
           x_levels <- levels(df_age_sex$age_group)
-          x_levels <- x_levels[x_levels != getOption("epishiny.ns.label", "(Missing)")]
-          xaxis <- list(categories = x_levels, reversed = FALSE, title = list(text = age_group_lab))
+          x_levels <- x_levels[x_levels != getOption("epishiny.na.label", "(Missing)")]
+          xaxis <- list(
+            categories = x_levels,
+            reversed = FALSE,
+            title = list(text = epishiny_tr(age_group_lab))
+          )
           value_lab <- paste(
             get_label_tr(input$count_var, count_vars),
             ifelse(var_select == "n", "", "(%)")
@@ -395,7 +399,7 @@ person_server <- function(
             dplyr::do(data = .data[[var_select]]) %>%
             dplyr::ungroup() %>%
             dplyr::rename(id = sex) %>%
-            dplyr::mutate(name = paste(.data$id, value_suffix)) %>%
+            dplyr::mutate(name = paste(epishiny_tr(as.character(.data$id)), value_suffix)) %>%
             highcharter::list_parse()
 
           highcharter::highchartProxy(ns("as_pyramid")) |>
@@ -425,24 +429,24 @@ person_server <- function(
             )
         }
 
-        if (sum(hc_dat$missing_age, hc_dat$missing_sex, na.rm = TRUE) > 0) {
-          txt <- format_missing_demographics(
-            hc_dat$missing_age,
-            hc_dat$missing_sex
+        n_used <- sum(abs(hc_dat$df_age_sex$n), na.rm = TRUE)
+        credit_lines <- c(
+          if (sum(hc_dat$missing_age, hc_dat$missing_sex, na.rm = TRUE) > 0) {
+            format_missing_demographics(
+              hc_dat$missing_age,
+              hc_dat$missing_sex
+            )
+          },
+          format_plot_n(n_used, get_label_tr(input$count_var, count_vars))
+        )
+        txt <- glue::glue_collapse(credit_lines, sep = " | ")
+        highcharter::highchartProxy(ns("as_pyramid")) %>%
+          highcharter::hcpxy_update(
+            credits = list(enabled = TRUE, text = txt),
+            exporting = list(
+              chartOptions = list(credits = list(text = txt))
+            )
           )
-          highcharter::highchartProxy(ns("as_pyramid")) %>%
-            highcharter::hcpxy_update(
-              credits = list(enabled = TRUE, text = txt),
-              exporting = list(
-                chartOptions = list(credits = list(text = txt))
-              )
-            )
-        } else {
-          highcharter::highchartProxy(ns("as_pyramid")) %>%
-            highcharter::hcpxy_update(
-              credits = list(enabled = FALSE)
-            )
-        }
       }) %>%
         bindEvent(hc_dat(), input$cnt_pcnt, ignoreInit = TRUE)
 
@@ -462,13 +466,19 @@ person_server <- function(
 
         df_gt %>%
           dplyr::select(dplyr::all_of(c("sex", "age_group"))) |>
+          dplyr::mutate(
+            sex = factor(
+              epishiny_tr(as.character(.data$sex)),
+              levels = epishiny_tr(c(male_level, female_level, getOption("epishiny.na.label", "(Missing)")))
+            )
+          ) |>
           gtsummary::tbl_summary(
             by = "sex",
             label = list(
               # age_var ~ age_var_lab,
-              "age_group" ~ age_group_lab
+              "age_group" ~ epishiny_tr(age_group_lab)
             ),
-            missing_text = getOption("epishiny.na.label", "(Missing)"),
+            missing_text = epishiny_tr(getOption("epishiny.na.label", "(Missing)")),
             # type = list(age_var ~ "continuous2"),
             # digits = list(age_var ~ c(2, 0, 0, 0, 0, 0)),
             # statistic = gtsummary::all_continuous() ~ c("{mean}",
@@ -478,7 +488,9 @@ person_server <- function(
           gtsummary::modify_header(
             gtsummary::all_stat_cols() ~ "**{level}**, N = {n} ({gtsummary::style_percent(p, digits = 1)}%)"
           ) %>%
-          gtsummary::add_overall() %>%
+          gtsummary::add_overall(
+            col_label = paste0("**", epishiny_tr("Total"), "**, N = {N}")
+          ) %>%
           gtsummary::italicize_levels() %>%
           gtsummary::remove_footnote_header(columns = gtsummary::all_stat_cols()) %>%
           # gtsummary::modify_footnote_header(update = gtsummary::everything() ~ NA) %>%
@@ -505,7 +517,7 @@ hc_as_pyramid <- function(
 ) {
   max_value <- max(abs(df_age_sex$n))
   x_levels <- levels(df_age_sex$age_group)
-  x_levels <- x_levels[x_levels != getOption("epishiny.ns.label", "(Missing)")]
+  x_levels <- x_levels[x_levels != getOption("epishiny.na.label", "(Missing)")]
   xaxis <- list(categories = x_levels, reversed = FALSE, title = list(text = ylab))
 
   series <- df_age_sex %>%
@@ -514,7 +526,7 @@ hc_as_pyramid <- function(
     dplyr::do(data = .data$n) %>%
     dplyr::ungroup() %>%
     dplyr::rename(id = sex) %>%
-    dplyr::mutate(name = .data$id) %>%
+    dplyr::mutate(name = epishiny_tr(as.character(.data$id))) %>%
     highcharter::list_parse()
 
   hc_out <- highcharter::highchart() %>%
@@ -551,7 +563,7 @@ hc_as_pyramid <- function(
     highcharter::hc_colors(colours) %>%
     highcharter::hc_tooltip(
       shared = FALSE,
-      formatter = hc_as_tooltip()
+      formatter = hc_as_tooltip(age_lab = epishiny_tr("Age"))
     ) %>%
     highcharter::hc_legend(
       enabled = TRUE,
@@ -561,26 +573,34 @@ hc_as_pyramid <- function(
     ) %>%
     highcharter::hc_title(text = NULL)
 
-  if (sum(missing_age, missing_sex) > 0) {
-    hc_out <- hc_out %>%
-      highcharter::hc_credits(
-        enabled = TRUE,
-        text = format_missing_demographics(missing_age, missing_sex)
-      )
-  }
+  n_used <- sum(abs(df_age_sex$n), na.rm = TRUE)
+  credit_lines <- c(
+    if (sum(missing_age, missing_sex) > 0) {
+      format_missing_demographics(missing_age, missing_sex)
+    },
+    format_plot_n(n_used, value_name)
+  )
+  hc_out <- hc_out %>%
+    highcharter::hc_credits(
+      enabled = TRUE,
+      text = glue::glue_collapse(credit_lines, sep = " | ")
+    )
 
   hc_out %>% my_hc_export(caption = filter_info, width = 700)
 }
 
-hc_as_tooltip <- function() {
+hc_as_tooltip <- function(age_lab = "Age") {
   highcharter::JS(
-    "function () { 
-      var isProp = this.series.name.endsWith('%'); 
+    sprintf(
+      "function () { 
+      var isProp = this.series.name.endsWith('%%'); 
       var decimals = isProp ? 1 : 0; 
-      var unit = isProp ? '%' : ''; 
-      var name_clean = this.series.name.replace(' %', '').replace('%', '');
-      return '<b>' + name_clean + ', age ' + this.point.category + '</b><br/>' + Highcharts.numberFormat(Math.abs(this.point.y), decimals) + unit; 
-    }"
+      var unit = isProp ? '%%' : ''; 
+      var name_clean = this.series.name.replace(' %%', '').replace('%%', '');
+      return '<b>' + name_clean + ', %s ' + this.point.category + '</b><br/>' + Highcharts.numberFormat(Math.abs(this.point.y), decimals) + unit; 
+    }",
+      tolower(age_lab)
+    )
   )
 }
 

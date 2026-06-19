@@ -202,6 +202,12 @@ format_missing_demographics <- function(missing_age, missing_sex) {
   )
 }
 
+#' Format the number of records included in a plot
+#' @noRd
+format_plot_n <- function(n, lab = getOption("epishiny.count.label", "Cases")) {
+  glue::glue("N = {scales::number(n)} {tolower(epishiny_tr(lab))}")
+}
+
 #'
 #' @description
 #' Combines filter information from time, place, and filter modules into formatted HTML

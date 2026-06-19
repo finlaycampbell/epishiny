@@ -135,6 +135,10 @@
     {"en": "Gender", "fr": "Genre"},
     {"en": "Province", "fr": "Province"},
     {"en": "Health zone", "fr": "Zone de santé"},
-    {"en": "Health area", "fr": "Aire de santé"}
+    {"en": "Health area", "fr": "Aire de santé"},
+    {"en": "Total", "fr": "Total"},
+    {"en": "Status", "fr": "Statut vital"},
+    {"en": "Died", "fr": "Décédé"},
+    {"en": "Not died", "fr": "Non décédé"}
   ]
 }

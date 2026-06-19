@@ -391,6 +391,7 @@ time_server <- function(
         shiny::validate(shiny::need(nrow(df) > 0, epishiny_tr("No data to display")))
 
         date_lab <- get_label_tr(date, date_vars)
+        n_used <- sum(df$n, na.rm = TRUE)
 
         click_js <- highcharter::JS(
           glue::glue(
@@ -564,16 +565,21 @@ time_server <- function(
             )
         }
 
-        if (missing_dates > 0) {
-          hc <- hc %>%
-            highcharter::hc_credits(
-              enabled = TRUE,
-              text = glue::glue(
-                "{epishiny_tr('Missing')} {tolower(date_lab)} ",
-                "{scales::number(missing_dates)} {tolower(y_lab)}"
-              )
+        credit_lines <- c(
+          if (missing_dates > 0) {
+            glue::glue(
+              "{epishiny_tr('Missing')} {tolower(date_lab)}: ",
+              "{scales::number(missing_dates)} {tolower(epishiny_tr(y_lab))}"
             )
-        }
+          },
+          format_plot_n(n_used, y_lab)
+        )
+
+        hc <- hc %>%
+          highcharter::hc_credits(
+            enabled = TRUE,
+            text = glue::glue_collapse(credit_lines, sep = " | ")
+          )
 
         hc
       }) %>%
@@ -1144,6 +1150,8 @@ prepare_palette <- function(
     n_non_na <- ifelse(missing_data, n - 1, n)
     pal <- if (n_non_na > n_pal && n_non_na < 10) {
       grDevices::colorRampPalette(epi_pals()$aurora)(n_non_na)
+    } else if (n_non_na > length(epi_pals()$pal20)) {
+      grDevices::colorRampPalette(epi_pals()$pal20)(n_non_na)
     } else if (n_non_na > n_pal) {
       epi_pals()$pal20
     } else {
